@@ -22,5 +22,12 @@ class ApiTest(unittest.TestCase):
         task=self.c.post(f'/api/devices/{dev["id"]}/tasks',json={"kind":"exec","payload":{"command":"true"}},headers=self.auth);self.assertEqual(task.status_code,201)
         polled=self.c.get("/api/agent/poll?wait=0",headers=dh).json["tasks"];self.assertEqual(polled[0]["kind"],"exec")
         result=self.c.post(f'/api/agent/tasks/{task.json["id"]}/result',json={"status":"done","claim_token":polled[0]["claim_token"]},headers=dh);self.assertEqual(result.status_code,200)
+    def test_typing_word_has_chinese_translation(self):
+        r=self.c.get("/api/typing/word",headers=self.auth)
+        self.assertEqual(r.status_code,200)
+        self.assertTrue(r.json["word"])
+        self.assertTrue(r.json["chinese"])
+        self.assertIn("pronunciation",r.json)
+        self.assertGreater(r.json["word_count"],4000)
 
 if __name__ == "__main__": unittest.main()

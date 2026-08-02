@@ -1,5 +1,5 @@
 """把原 web_server 的两个 Flask 应用挂载到统一 WSGI 进程。"""
-import hashlib, importlib.util, sqlite3, sys, time
+import hashlib, importlib.util, sqlite3, sys, time, shutil
 from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -29,8 +29,13 @@ def load(name,path):
 def mount_legacy(app):
     root=Path(__file__).resolve().parent.parent/"vendor"/"web_server"
     sys.path.insert(0,str(root))
-    port_app=load("integrated_port_server",root/"app.py").app
+    port_module=load("integrated_port_server",root/"app.py");port_app=port_module.app
     port_app.template_folder=str(root/"templates")
+    if shutil.which("nmap") is None:
+        from .scan_fallback import scan as fallback_scan
+        port_app.view_functions  # ensure routes are initialized
+        port_module.run_nmap_scan=fallback_scan
+        port_module._run_nmap_scan=lambda ip,top_ports=1000: fallback_scan(ip,top_ports,"")
     frp_app=load("integrated_frp_server",root/"frp_web.py").app
     frp_app.template_folder=str(root/"templates")
     gate=lambda target:TokenGate(target.wsgi_app,str(Path(app.config["DATA_DIR"])/"control.db"))
