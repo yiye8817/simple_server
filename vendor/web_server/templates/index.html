@@ -1,0 +1,2163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>端口扫描和FRP带宽测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-title:hover {
+            color: #667eea;
+        }
+        
+        .card-title::after {
+            content: '▼';
+            font-size: 12px;
+            transition: transform 0.3s;
+        }
+        
+        .card.collapsed .card-title::after {
+            transform: rotate(-90deg);
+        }
+        
+        .card.collapsed .card-content {
+            display: none;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        
+        .port-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        
+        .port-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .port-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .port-item:last-child {
+            border-bottom: none;
+        }
+        
+        .port-item input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+        }
+        
+        .port-number {
+            font-weight: 600;
+            color: #333;
+            min-width: 60px;
+        }
+        
+        .port-state {
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        
+        .state-open {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .state-closed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .state-filtered {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .port-desc {
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .result-box {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .result-box h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            background: #e9ecef;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 12px;
+        }
+        
+        .sort-arrow { font-size: 10px; color: #999; }
+        th:hover .sort-arrow { color: #333; }
+        
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .test-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        
+        .test-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .test-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .section-divider {
+            border-top: 1px solid #eee;
+            margin: 20px 0;
+        }
+        
+        .inline-form {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        
+        .inline-form .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-right: 5px;
+        }
+        
+        .tag-suggest {
+            background: #cce5ff;
+            color: #004085;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-running {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-stopped {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .service-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        
+        .service-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+        
+        .service-item:last-child {
+            border-bottom: none;
+        }
+        
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>端口扫描和FRP带宽测试工具</h1>
+        
+        <!-- 扫描配置 -->
+        <div class="card">
+            <div class="card-title">扫描配置</div>
+            <div class="inline-form">
+                <div class="form-group">
+                    <label for="targetIp">目标IP地址</label>
+                    <textarea id="targetIp" rows="3" placeholder="输入IP地址，支持多行、CIDR格式(如 8.4.4.4/24)、IP范围(如 192.168.1.1-100)"></textarea>
+                </div>
+                <div class="form-group" style="flex: 0 0 200px;">
+                    <label>IP来源</label>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn btn-primary" onclick="loadIpsFromDb()" style="flex: 1;">从数据库加载</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="inline-form" style="margin-top: 10px;">
+                <div class="form-group">
+                    <label for="topPorts">扫描端口数 (Top N)</label>
+                    <input type="number" id="topPorts" value="1000" min="100" max="10000" placeholder="1000">
+                </div>
+                <div class="form-group">
+                    <label for="portGroup">端口分组</label>
+                    <select id="portGroup" onchange="applyPortGroup()">
+                        <option value="">自定义</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="customPorts">自定义端口</label>
+                    <input type="text" id="customPorts" placeholder="例如: 80,443,8080 或 1-1000">
+                </div>
+                <div class="form-group" style="flex: 0 0 auto;">
+                    <button class="btn btn-primary" onclick="startScan()">开始扫描</button>
+                </div>
+            </div>
+            
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                支持: 单个IP、CIDR格式(192.168.1.0/24)、IP范围(192.168.1.1-100)、多行输入
+            </p>
+            
+            <div id="ipListContainer" style="display: none; margin-top: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <strong id="ipListTitle">IP地址列表</strong>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span id="ipListInfo" style="font-size: 12px; color: #666;"></span>
+                        <label style="font-size: 12px; cursor: pointer;">
+                            <input type="checkbox" id="selectAllIps" onchange="toggleSelectAllIps()"> 全选
+                        </label>
+                        <button class="btn btn-primary" style="padding: 3px 10px; font-size: 12px;" onclick="addIpToTarget()">添加选中IP</button>
+                        <button class="btn btn-success" style="padding: 3px 10px; font-size: 12px;" onclick="batchDownloadTest()">批量下载测试</button>
+                    </div>
+                </div>
+                <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead style="position: sticky; top: 0; background: #f0f0f0; z-index: 1;">
+                            <tr>
+                                <th style="padding: 6px 8px; width: 30px;"><input type="checkbox" id="ipTableCheckAll" onchange="toggleSelectAllIps()"></th>
+                                <th style="padding: 6px 8px; text-align: left; width: 40px;">#</th>
+                                <th style="padding: 6px 8px; text-align: left; cursor: pointer; user-select: none;" onclick="sortIpTable('server')">IP地址 <span id="sort-server" class="sort-arrow"></span></th>
+                                <th style="padding: 6px 8px; text-align: left; width: 100px; cursor: pointer; user-select: none;" onclick="sortIpTable('port')">端口 <span id="sort-port" class="sort-arrow"></span></th>
+                                <th style="padding: 6px 8px; text-align: left; width: 80px; cursor: pointer; user-select: none;" onclick="sortIpTable('speed')">延迟 <span id="sort-speed" class="sort-arrow"></span></th>
+                                <th style="padding: 6px 8px; text-align: left; cursor: pointer; user-select: none;" onclick="sortIpTable('description')">描述 <span id="sort-description" class="sort-arrow"></span></th>
+                                <th style="padding: 6px 8px; text-align: center; width: 60px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ipTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="ipPagination" style="display: flex; justify-content: center; align-items: center; gap: 5px; margin-top: 10px; flex-wrap: wrap;"></div>
+            </div>
+            
+            <div id="scanLoading" class="loading">
+                <div class="spinner"></div>
+                <p>正在扫描中，请稍候...</p>
+            </div>
+        </div>
+        
+        <!-- 扫描结果 -->
+        <div id="scanResult" class="card collapsed" style="display: none;">
+            <div class="card-title" onclick="toggleCard('scanResult')">扫描结果</div>
+            <div class="card-content">
+            
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalScanned">0</div>
+                    <div class="stat-label">扫描端口</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="openCount" style="color: #28a745;">0</div>
+                    <div class="stat-label">开放端口</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="closedCount" style="color: #dc3545;">0</div>
+                    <div class="stat-label">关闭端口</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="filteredCount" style="color: #ffc107;">0</div>
+                    <div class="stat-label">过滤端口</div>
+                </div>
+            </div>
+            
+            <div class="grid">
+                <!-- 开放端口 -->
+                <div>
+                    <h4 style="color: #28a745; margin-bottom: 10px;">
+                        <span class="tag state-open">OPEN</span> 开放端口
+                    </h4>
+                    <div id="openPortsList" class="port-list"></div>
+                </div>
+                
+                <!-- 关闭端口 -->
+                <div>
+                    <h4 style="color: #dc3545; margin-bottom: 10px;">
+                        <span class="tag state-closed">CLOSED</span> 关闭端口
+                        <span class="tag tag-suggest">推荐用于映射</span>
+                    </h4>
+                    <div id="closedPortsList" class="port-list"></div>
+                </div>
+            </div>
+            
+            <!-- 常见端口说明 -->
+            <div class="section-divider"></div>
+            <div class="result-box">
+                <h4>常见端口用途说明</h4>
+                <div id="portDescriptions" class="service-list"></div>
+            </div>
+            </div>
+        </div>
+        
+        <!-- 端口映射配置 -->
+        <div id="mappingConfig" class="card collapsed" style="display: none;">
+            <div class="card-title" onclick="toggleCard('mappingConfig')">端口映射配置</div>
+            <div class="card-content">
+            
+            <div class="grid">
+                <div class="form-group">
+                    <label>远程端口 (服务器端) - 优先CLOSED端口</label>
+                    <div id="remotePortsList" class="service-list"></div>
+                </div>
+                <div class="form-group">
+                    <label>本地映射端口 - 可编辑</label>
+                    <div id="localPortsList" class="service-list"></div>
+                </div>
+            </div>
+            
+            <button class="btn btn-warning" onclick="addMorePortMapping()">+ 增加端口映射</button>
+            
+            <div class="result-box">
+                <h4>端口映射关系</h4>
+                <div id="portMappingSummary" class="service-list"></div>
+            </div>
+            </div>
+        </div>
+        
+        <!-- FRPC客户端配置 -->
+        <div id="frpcConfig" class="card collapsed" style="display: none;">
+            <div class="card-title" onclick="toggleCard('frpcConfig')">FRPC客户端配置</div>
+            <div class="card-content">
+            
+            <div class="grid">
+                <div class="form-group">
+                    <label for="frpcServerIp">FRP服务器IP</label>
+                    <input type="text" id="frpcServerIp" placeholder="FRP服务器地址">
+                </div>
+                <div class="form-group">
+                    <label for="frpcServerPort">FRP服务器端口</label>
+                    <input type="number" id="frpcServerPort" value="7000">
+                </div>
+                <div class="form-group">
+                    <label for="frpcRemotePort">远程端口 (服务器端)</label>
+                    <input type="number" id="frpcRemotePort" placeholder="留空自动选择" min="1" max="65535">
+                </div>
+            </div>
+            
+            <div class="grid">
+                <div class="form-group">
+                    <label for="frpcToken">认证Token</label>
+                    <input type="text" id="frpcToken" placeholder="可选">
+                </div>
+                <div class="form-group">
+                    <label for="frpcUser">用户名</label>
+                    <input type="text" id="frpcUser" placeholder="可选">
+                </div>
+            </div>
+            
+            <button class="btn btn-primary" onclick="createFrpc()">生成配置</button>
+            <button class="btn btn-success" onclick="startFrpc()">启动FRPC</button>
+            <button class="btn btn-danger" onclick="stopFrpc()">停止FRPC</button>
+            
+            <div id="frpcConfigPreview" class="code-block" style="margin-top: 15px; display: none;"></div>
+            
+            <div id="frpcStatus" class="result-box" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+        
+        <!-- 本地HTTP服务器 -->
+        <div id="httpServerConfig" class="card collapsed" style="display: none;">
+            <div class="card-title" onclick="toggleCard('httpServerConfig')">本地HTTP服务器</div>
+            <div class="card-content">
+            
+            <div class="inline-form">
+                <div class="form-group">
+                    <label for="httpFolderPath">文件夹路径</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="httpFolderPath" placeholder="例如: /home/user/files" style="flex: 1;">
+                        <button class="btn btn-primary" onclick="selectFolder()">选择文件夹</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="httpServerPort">端口</label>
+                    <select id="httpServerPort" onchange="syncTestPortFromHttpPort()"></select>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-success" onclick="startHttpServer()">启动服务器</button>
+                    <button class="btn btn-danger" onclick="stopHttpServer()">停止服务器</button>
+                </div>
+            </div>
+            
+            <div id="httpServerStatus" class="result-box" style="margin-top: 15px;"></div>
+        </div>
+        
+        <!-- 下载测试 -->
+        <div id="downloadTest" class="card collapsed" style="display: none;">
+            <div class="card-title" onclick="toggleCard('downloadTest')">下载测试</div>
+            <div class="card-content">
+            
+            <div class="inline-form">
+                <div class="form-group">
+                    <label for="testServerPort">选择映射端口</label>
+                    <select id="testServerPort" onchange="updateTestUrl()"></select>
+                </div>
+                <div class="form-group">
+                    <label for="testFileName">文件名</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="testFileName" value="50M" placeholder="例如: 50M" style="flex: 1;">
+                        <button class="btn btn-primary" onclick="selectTestFile()">选择文件</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="testUrl">测试URL</label>
+                <input type="text" id="testUrl" placeholder="http://服务器IP:端口/文件名">
+            </div>
+            
+            <div style="margin-top: 10px;">
+                <button class="btn btn-primary" id="startTestBtn" onclick="testDownload()">开始测试</button>
+                <button class="btn btn-danger" id="stopTestBtn" onclick="stopDownload()" style="display: none;">停止测试</button>
+                <button class="btn btn-warning" onclick="batchTest()">批量测试</button>
+            </div>
+            
+            <!-- 下载进度显示 -->
+            <div id="downloadProgress" style="display: none; margin-top: 15px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span id="progressStatus">下载中...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressBar"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 13px;">
+                    <div>
+                        <strong>当前速度:</strong> <span id="currentSpeed">0 MB/s</span>
+                    </div>
+                    <div>
+                        <strong>平均速度:</strong> <span id="avgSpeed">0 MB/s</span>
+                    </div>
+                    <div>
+                        <strong>已下载:</strong> <span id="downloadedSize">0 MB</span>
+                    </div>
+                    <div>
+                        <strong>用时:</strong> <span id="downloadTime">0 秒</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="testResults" class="result-box" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+        
+        <!-- 连接测试 -->
+        <div id="connectionTest" class="card collapsed" style="display: none;">
+            <div class="card-title" onclick="toggleCard('connectionTest')">连接测试</div>
+            <div class="card-content">
+            
+            <div class="inline-form">
+                <div class="form-group">
+                    <label for="testConnectIp">IP地址</label>
+                    <input type="text" id="testConnectIp" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="testConnectPort">端口</label>
+                    <input type="number" id="testConnectPort" placeholder="端口号">
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="testConnection()">测试连接</button>
+                </div>
+            </div>
+            
+            <div id="connectionResults" class="result-box" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 端口说明模态框 -->
+    <div id="portModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalPortTitle">端口详情</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalPortContent"></div>
+        </div>
+    </div>
+    
+    <!-- 文件夹选择模态框 -->
+    <div id="folderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>选择文件夹</h3>
+                <button class="close-btn" onclick="closeFolderModal()">&times;</button>
+            </div>
+            <div id="folderModalContent"></div>
+        </div>
+    </div>
+    
+    <!-- 文件选择模态框 -->
+    <div id="fileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>选择文件</h3>
+                <button class="close-btn" onclick="closeFileModal()">&times;</button>
+            </div>
+            <div id="fileModalContent"></div>
+        </div>
+    </div>
+    
+    <script>
+        let scanData = null;
+        let currentScanId = null;
+        let frpcConfigPath = null;
+        let currentFrpcId = null;
+        let currentHttpServerId = null;
+        let selectedRemotePorts = [];
+        let selectedLocalPorts = [];
+        let localPortCount = 3;
+        
+        // 加载端口分组
+        async function loadPortGroups() {
+            try {
+                const response = await fetch('api/port-groups');
+                const data = await response.json();
+                const select = document.getElementById('portGroup');
+                Object.keys(data.port_groups).forEach(group => {
+                    const option = document.createElement('option');
+                    option.value = group;
+                    option.textContent = group;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('加载端口分组失败:', error);
+            }
+        }
+        
+        // 应用端口分组
+        function applyPortGroup() {
+            const group = document.getElementById('portGroup').value;
+            if (!group) {
+                document.getElementById('customPorts').value = '';
+                return;
+            }
+            
+            fetch('api/port-groups')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.port_groups[group]) {
+                        document.getElementById('customPorts').value = data.port_groups[group].join(',');
+                    }
+                });
+        }
+        
+        // IP列表分页状态
+        let ipCurrentPage = 1;
+        const ipPageSize = 50;
+        let ipTotalPages = 1;
+        let ipSelectedIndex = -1;
+        let ipDataList = [];
+        let ipSortBy = 'server';
+        let ipSortDir = 'asc';
+        
+        function sortIpTable(col) {
+            if (ipSortBy === col) {
+                ipSortDir = ipSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                ipSortBy = col;
+                ipSortDir = 'asc';
+            }
+            // 更新排序箭头
+            document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '');
+            const arrow = document.getElementById(`sort-${col}`);
+            if (arrow) arrow.textContent = ipSortDir === 'asc' ? '▲' : '▼';
+            loadIpsFromDb(ipCurrentPage);
+        }
+        
+        // 从数据库加载IP
+        async function loadIpsFromDb(page) {
+            page = page || 1;
+            ipCurrentPage = page;
+            try {
+                const response = await fetch(`api/ips/from-db?page=${page}&per_page=${ipPageSize}&sort=${ipSortBy}&dir=${ipSortDir}`);
+                const data = await response.json();
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                
+                ipTotalPages = data.total_pages;
+                ipSelectedIndex = -1;
+                ipDataList = data.ips;
+                
+                document.getElementById('ipListContainer').style.display = 'block';
+                document.getElementById('ipListTitle').textContent = `IP地址列表 (${data.total} 个)`;
+                document.getElementById('ipListInfo').textContent = `第 ${data.page}/${data.total_pages} 页，共 ${data.total} 条`;
+                document.getElementById('selectAllIps').checked = false;
+                document.getElementById('ipTableCheckAll').checked = false;
+                
+                const tbody = document.getElementById('ipTableBody');
+                const startIdx = (page - 1) * ipPageSize;
+                tbody.innerHTML = data.ips.map((ip, i) => `
+                    <tr style="cursor: pointer; border-bottom: 1px solid #eee;" 
+                        onmouseover="this.style.background='#f0f7ff'" 
+                        onmouseout="if(!this.querySelector('input:checked'))this.style.background=''">
+                        <td style="padding: 6px 8px; text-align: center;">
+                            <input type="checkbox" class="ip-checkbox" value="${i}" onchange="onIpCheckboxChange()">
+                        </td>
+                        <td style="padding: 6px 8px; color: #999;">${startIdx + i + 1}</td>
+                        <td style="padding: 6px 8px; font-family: monospace;">${ip.server}</td>
+                        <td style="padding: 6px 8px;">${ip.port || '-'}</td>
+                        <td style="padding: 6px 8px;">${ip.speed || '-'}</td>
+                        <td style="padding: 6px 8px; font-size: 12px; color: #666; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${ip.description}">${ip.description || '-'}</td>
+                        <td style="padding: 6px 8px; text-align: center;">
+                            <button class="btn btn-primary" style="padding: 2px 8px; font-size: 11px;" 
+                                    onclick="event.stopPropagation(); setTargetIp('${ip.server}')">使用</button>
+                        </td>
+                    </tr>
+                `).join('');
+                
+                renderIpPagination();
+            } catch (error) {
+                alert('加载IP列表失败: ' + error.message);
+            }
+        }
+        
+        function onIpCheckboxChange() {
+            const checkboxes = document.querySelectorAll('.ip-checkbox');
+            const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
+            document.getElementById('ipTableCheckAll').checked = allChecked;
+        }
+        
+        function toggleSelectAllIps() {
+            const checked = document.getElementById('ipTableCheckAll').checked;
+            document.getElementById('selectAllIps').checked = checked;
+            document.querySelectorAll('.ip-checkbox').forEach(cb => {
+                cb.checked = checked;
+                const tr = cb.closest('tr');
+                if (tr) tr.style.background = checked ? '#e0ecff' : '';
+            });
+        }
+        
+        function setTargetIp(ip) {
+            document.getElementById('targetIp').value = ip;
+        }
+        
+        function addIpToTarget() {
+            const checked = document.querySelectorAll('.ip-checkbox:checked');
+            if (checked.length === 0) {
+                alert('请先勾选要添加的IP');
+                return;
+            }
+            const ta = document.getElementById('targetIp');
+            const existing = ta.value.trim();
+            const newIps = Array.from(checked).map(cb => ipDataList[parseInt(cb.value)].server);
+            ta.value = existing ? existing + '\n' + newIps.join('\n') : newIps.join('\n');
+        }
+        
+        function getSelectedIps() {
+            const checked = document.querySelectorAll('.ip-checkbox:checked');
+            return Array.from(checked).map(cb => ipDataList[parseInt(cb.value)]);
+        }
+        
+        async function batchDownloadTest() {
+            const selected = getSelectedIps();
+            if (selected.length === 0) {
+                alert('请先勾选要测试的IP');
+                return;
+            }
+            
+            const testFile = document.getElementById('testFileName').value || '50M';
+            const httpFolder = document.getElementById('httpFolderPath').value;
+            const frpcServerIp = document.getElementById('frpcServerIp').value;
+            const frpcServerPort = document.getElementById('frpcServerPort').value || 7000;
+            const frpcRemotePort = document.getElementById('frpcRemotePort').value || '';
+            const frpcToken = document.getElementById('frpcToken').value;
+            const frpcUser = document.getElementById('frpcUser').value;
+            const topPorts = document.getElementById('topPorts').value || 1000;
+            
+            if (!frpcServerIp) {
+                alert('请填写FRP服务器地址');
+                return;
+            }
+            
+            // 显示结果区域
+            const container = document.getElementById('ipListContainer');
+            let resultDiv = document.getElementById('batchTestResults');
+            if (!resultDiv) {
+                resultDiv = document.createElement('div');
+                resultDiv.id = 'batchTestResults';
+                resultDiv.style.cssText = 'margin-top: 15px;';
+                container.parentNode.insertBefore(resultDiv, container.nextSibling);
+            }
+            
+            resultDiv.innerHTML = `
+                <div style="background: #f0f7ff; padding: 15px; border-radius: 5px; border: 1px solid #b3d7ff;">
+                    <h4 style="margin: 0 0 10px 0;">批量下载测试 (${selected.length} 个IP)</h4>
+                    <div id="batchTestProgress" style="margin-bottom: 10px; font-size: 13px; color: #666;">准备中...</div>
+                    <div id="batchTestList"></div>
+                </div>
+            `;
+            
+            const listDiv = document.getElementById('batchTestList');
+            const progressDiv = document.getElementById('batchTestProgress');
+            
+            try {
+                const resp = await fetch('api/batch/download-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ips: selected,
+                        test_file: testFile,
+                        http_folder: httpFolder,
+                        frpc_server_ip: frpcServerIp,
+                        frpc_server_port: parseInt(frpcServerPort),
+                        frpc_remote_port: frpcRemotePort ? parseInt(frpcRemotePort) : null,
+                        frpc_token: frpcToken,
+                        frpc_user: frpcUser,
+                        top_ports: parseInt(topPorts)
+                    })
+                });
+                
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let rowIndex = 0;
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const data = JSON.parse(line.slice(6));
+                        
+                        if (data.step === 'start') {
+                            rowIndex = data.index;
+                            listDiv.innerHTML += `
+                                <div id="batch-${rowIndex}" style="padding: 8px; margin: 5px 0; background: white; border-radius: 3px; border: 1px solid #ddd; font-size: 13px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <span style="font-family: monospace; font-weight: bold;">${data.server}</span>
+                                            <span style="color: #999; margin-left: 10px; font-size: 12px;">${data.message}</span>
+                                        </div>
+                                        <span class="batch-status" style="color: #667eea;">处理中...</span>
+                                    </div>
+                                    <div class="batch-detail" style="margin-top: 5px; font-size: 12px; color: #666;"></div>
+                                </div>
+                            `;
+                            progressDiv.textContent = `[${data.index+1}/${data.total}] ${data.message}`;
+                        } else if (data.step === 'log') {
+                            const el = document.getElementById(`batch-${data.index}`);
+                            if (el) {
+                                const detail = el.querySelector('.batch-detail');
+                                if (detail) detail.innerHTML += `<div style="color: #888; font-size: 11px;">${data.message}</div>`;
+                            }
+                        } else if (data.step === 'downloading') {
+                            const el = document.getElementById(`batch-${data.index}`);
+                            if (el) {
+                                const detail = el.querySelector('.batch-detail');
+                                if (detail) detail.innerHTML += `<div style="color: #667eea;">${data.message}</div>`;
+                            }
+                        } else if (data.step === 'download_done') {
+                            const el = document.getElementById(`batch-${data.index}`);
+                            if (el) {
+                                const detail = el.querySelector('.batch-detail');
+                                if (detail) detail.innerHTML += `<div style="color: #28a745;">${data.message}</div>`;
+                            }
+                        } else if (data.server && data.status) {
+                            const el = document.getElementById(`batch-${data.index !== undefined ? data.index : rowIndex}`);
+                            if (el) {
+                                const statusEl = el.querySelector('.batch-status');
+                                const detail = el.querySelector('.batch-detail');
+                                if (data.status === 'success' && data.download_result) {
+                                    const dr = data.download_result;
+                                    statusEl.innerHTML = `<span style="color: #28a745; font-weight: bold;">${dr.speed_mbps} MB/s</span> <span style="color: #999;">${(dr.total_bytes/1024/1024).toFixed(2)} MB / ${dr.elapsed}s</span>`;
+                                } else {
+                                    statusEl.innerHTML = `<span style="color: #dc3545;">${data.error || '失败'}</span>`;
+                                }
+                                // 显示frpc配置内容（如果有错误）
+                                if (data.frpc_config && data.frpc_config.config_content && data.status === 'failed') {
+                                    const cfg = data.frpc_config;
+                                    const configId = `config-${data.index !== undefined ? data.index : rowIndex}`;
+                                    detail.innerHTML += `
+                                        <div style="margin-top: 8px; background: #fff3cd; padding: 8px; border-radius: 3px; border: 1px solid #ffc107;">
+                                            <div style="font-weight: bold; margin-bottom: 5px; color: #856404;">frpc配置文件 (${cfg.config_path})</div>
+                                            <pre id="${configId}" style="margin: 0; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; background: white; padding: 5px; border-radius: 3px;">${cfg.config_content}</pre>
+                                            ${cfg.stdout ? `<div style="margin-top: 5px; font-size: 11px;"><b>stdout:</b><pre style="margin: 0; white-space: pre-wrap; max-height: 100px; overflow-y: auto; background: white; padding: 5px;">${cfg.stdout}</pre></div>` : ''}
+                                            ${cfg.stderr ? `<div style="margin-top: 5px; font-size: 11px;"><b>stderr:</b><pre style="margin: 0; white-space: pre-wrap; max-height: 100px; overflow-y: auto; background: white; padding: 5px;">${cfg.stderr}</pre></div>` : ''}
+                                            <div style="margin-top: 8px;">
+                                                <button class="btn btn-primary" style="padding: 2px 8px; font-size: 11px;" onclick="copyConfigById('${configId}')">复制配置</button>
+                                                <button class="btn btn-primary" style="padding: 2px 8px; font-size: 11px;" onclick="downloadConfigById('${configId}', '${cfg.config_path.split('/').pop()}')">下载配置</button>
+                                            </div>
+                                        </div>
+                                    `;
+                                }
+                            }
+                        } else if (data.type === 'complete') {
+                            progressDiv.textContent = data.message;
+                        } else if (data.type === 'error') {
+                            progressDiv.innerHTML = `<span style="color: #dc3545;">${data.error}</span>`;
+                        }
+                    }
+                }
+                
+                // 保存结果
+                await fetch('api/history/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'batch_test',
+                        record: {
+                            summary: `批量测试 ${selected.length} 个IP`,
+                            ips: selected.map(ip => ip.server),
+                            test_file: testFile,
+                            frpc_server: frpcServerIp,
+                            saved_at: new Date().toISOString()
+                        }
+                    })
+                });
+                
+            } catch (error) {
+                progressDiv.innerHTML = `<span style="color: #dc3545;">错误: ${error.message}</span>`;
+            }
+        }
+        
+        function copyConfigById(preId) {
+            const pre = document.getElementById(preId);
+            if (!pre) return;
+            const content = pre.textContent;
+            navigator.clipboard.writeText(content).then(() => {
+                alert('配置已复制到剪贴板');
+            }).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = content;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                alert('配置已复制到剪贴板');
+            });
+        }
+        
+        function downloadConfigById(preId, filename) {
+            const pre = document.getElementById(preId);
+            if (!pre) return;
+            const content = pre.textContent;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'frpc.toml';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function copyFrpcConfig(content) {
+            navigator.clipboard.writeText(content).then(() => {
+                alert('配置已复制到剪贴板');
+            }).catch(() => {
+                // fallback
+                const ta = document.createElement('textarea');
+                ta.value = content;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                alert('配置已复制到剪贴板');
+            });
+        }
+        
+        function downloadFrpcConfig(filename, content) {
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function renderIpPagination() {
+            const container = document.getElementById('ipPagination');
+            let html = '';
+            
+            html += `<button class="btn btn-primary" style="padding: 3px 10px; font-size: 12px;" 
+                        onclick="loadIpsFromDb(1)" ${ipCurrentPage === 1 ? 'disabled' : ''}>首页</button>`;
+            html += `<button class="btn btn-primary" style="padding: 3px 10px; font-size: 12px;" 
+                        onclick="loadIpsFromDb(${ipCurrentPage - 1})" ${ipCurrentPage === 1 ? 'disabled' : ''}>上一页</button>`;
+            
+            let startPage = Math.max(1, ipCurrentPage - 2);
+            let endPage = Math.min(ipTotalPages, ipCurrentPage + 2);
+            if (startPage > 1) html += `<span style="padding: 3px 6px; font-size: 12px; color: #999;">...</span>`;
+            for (let p = startPage; p <= endPage; p++) {
+                html += `<button class="btn ${p === ipCurrentPage ? 'btn-success' : 'btn-primary'}" 
+                            style="padding: 3px 10px; font-size: 12px;" 
+                            onclick="loadIpsFromDb(${p})">${p}</button>`;
+            }
+            if (endPage < ipTotalPages) html += `<span style="padding: 3px 6px; font-size: 12px; color: #999;">...</span>`;
+            
+            html += `<button class="btn btn-primary" style="padding: 3px 10px; font-size: 12px;" 
+                        onclick="loadIpsFromDb(${ipCurrentPage + 1})" ${ipCurrentPage === ipTotalPages ? 'disabled' : ''}>下一页</button>`;
+            html += `<button class="btn btn-primary" style="padding: 3px 10px; font-size: 12px;" 
+                        onclick="loadIpsFromDb(${ipTotalPages})" ${ipCurrentPage === ipTotalPages ? 'disabled' : ''}>末页</button>`;
+            
+            container.innerHTML = html;
+        }
+        
+        // 开始扫描
+        async function startScan() {
+            const ip = document.getElementById('targetIp').value.trim();
+            const topPorts = document.getElementById('topPorts').value.trim();
+            const customPorts = document.getElementById('customPorts').value.trim();
+            
+            if (!ip) {
+                alert('请输入IP地址');
+                return;
+            }
+            
+            document.getElementById('scanLoading').style.display = 'block';
+            document.getElementById('scanResult').style.display = 'none';
+            document.getElementById('mappingConfig').style.display = 'none';
+            document.getElementById('frpcConfig').style.display = 'none';
+            document.getElementById('httpServerConfig').style.display = 'none';
+            document.getElementById('downloadTest').style.display = 'none';
+            document.getElementById('connectionTest').style.display = 'none';
+            
+            try {
+                const response = await fetch('api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        ip, 
+                        top_ports: customPorts ? undefined : parseInt(topPorts) || 1000,
+                        custom_ports: customPorts || undefined
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('扫描失败: ' + data.error);
+                    return;
+                }
+                
+                scanData = data;
+                currentScanId = data.scan_id;
+                
+                displayScanResults(data);
+                
+                // 获取推荐端口
+                await loadSuggestedPorts(data.scan_id);
+                
+                document.getElementById('scanResult').style.display = 'block';
+                document.getElementById('mappingConfig').style.display = 'block';
+                document.getElementById('frpcConfig').style.display = 'block';
+                document.getElementById('httpServerConfig').style.display = 'block';
+                document.getElementById('downloadTest').style.display = 'block';
+                document.getElementById('connectionTest').style.display = 'block';
+                
+                // 设置FRPC服务器IP
+                document.getElementById('frpcServerIp').value = data.ip;
+                document.getElementById('testConnectIp').value = data.ip;
+                updateTestUrl();
+                
+            } catch (error) {
+                alert('扫描出错: ' + error.message);
+            } finally {
+                document.getElementById('scanLoading').style.display = 'none';
+            }
+        }
+        
+        // 显示扫描结果
+        function displayScanResults(data) {
+            document.getElementById('totalScanned').textContent = data.total_scanned;
+            document.getElementById('openCount').textContent = data.open_ports.length;
+            document.getElementById('closedCount').textContent = data.closed_ports.length;
+            document.getElementById('filteredCount').textContent = data.filtered_ports.length;
+            
+            // 显示开放端口
+            const openList = document.getElementById('openPortsList');
+            openList.innerHTML = data.open_ports.map(port => `
+                <div class="port-item" onclick="showPortDetails(${port.port})">
+                    <span class="port-number">${port.port}</span>
+                    <span class="port-state state-open">OPEN</span>
+                    <span class="port-desc">${port.service} - ${port.description}</span>
+                </div>
+            `).join('');
+            
+            // 显示关闭端口
+            const closedList = document.getElementById('closedPortsList');
+            closedList.innerHTML = data.closed_ports.map(port => `
+                <div class="port-item" onclick="showPortDetails(${port.port})">
+                    <span class="port-number">${port.port}</span>
+                    <span class="port-state state-closed">CLOSED</span>
+                    <span class="port-desc">${port.description}</span>
+                </div>
+            `).join('');
+            
+            // 显示端口说明
+            const allPorts = [...data.open_ports, ...data.closed_ports];
+            const descriptions = document.getElementById('portDescriptions');
+            descriptions.innerHTML = allPorts.map(port => `
+                <div class="service-item">
+                    <strong>${port.port}</strong>: ${port.service} - ${port.description}
+                    ${port.product ? `(${port.product} ${port.version})` : ''}
+                </div>
+            `).join('');
+        }
+        
+        // 加载推荐端口
+        async function loadSuggestedPorts(scanId) {
+            try {
+                const response = await fetch(`api/scan/suggest-ports/${scanId}`);
+                const data = await response.json();
+                
+                // 显示远程端口（优先CLOSED）
+                const remoteDiv = document.getElementById('remotePortsList');
+                remoteDiv.innerHTML = data.suggested_remote_ports.map(port => `
+                    <div class="service-item" onclick="toggleRemotePort(${port.port})" style="cursor: pointer;">
+                        <input type="checkbox" id="remote_${port.port}" value="${port.port}">
+                        <strong>${port.port}</strong>
+                        <span class="tag ${port.type === 'closed' ? 'state-closed' : 'tag-suggest'}">${port.type === 'closed' ? 'CLOSED' : '可用'}</span>
+                        - ${port.reason}
+                    </div>
+                `).join('');
+                
+                // 显示本地端口（数量与远程端口相同）
+                selectedLocalPorts = data.suggested_local_ports.slice(0, data.suggested_remote_ports.length);
+                renderLocalPorts();
+                
+                // 默认选中前3个远程端口
+                data.suggested_remote_ports.slice(0, 3).forEach(port => {
+                    toggleRemotePort(port.port);
+                });
+                
+                // 更新测试端口选择
+                updateTestPortSelect();
+                
+            } catch (error) {
+                console.error('加载推荐端口失败:', error);
+            }
+        }
+        
+        function renderLocalPorts() {
+            const localDiv = document.getElementById('localPortsList');
+            localDiv.innerHTML = selectedLocalPorts.map((port, index) => `
+                <div class="service-item">
+                    <input type="checkbox" id="local_${port.port}" value="${port.port}" checked>
+                    <input type="number" id="local_edit_${port.port}" value="${port.port}" 
+                           style="width: 80px; padding: 3px 5px; font-size: 12px;" 
+                           onchange="updateLocalPort(${index}, this.value)">
+                    <span class="tag state-open">本地</span>
+                    <button class="btn btn-danger" style="padding: 2px 8px; font-size: 11px; margin-left: 10px;" 
+                            onclick="removeLocalPort(${index})">移除</button>
+                </div>
+            `).join('');
+            
+            updateMappingSummary();
+            updateHttpServerPorts();
+        }
+        
+        function toggleRemotePort(port) {
+            const checkbox = document.getElementById(`remote_${port}`);
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+            }
+            updateMappingSummary();
+        }
+        
+        function updateLocalPort(index, newPort) {
+            selectedLocalPorts[index].port = parseInt(newPort);
+            const checkbox = document.getElementById(`local_${selectedLocalPorts[index].port}`);
+            if (checkbox) {
+                checkbox.value = newPort;
+                checkbox.id = `local_${newPort}`;
+            }
+            updateMappingSummary();
+            updateHttpServerPorts();
+        }
+        
+        function removeLocalPort(index) {
+            selectedLocalPorts.splice(index, 1);
+            renderLocalPorts();
+        }
+        
+        async function addMorePortMapping() {
+            // 添加新的本地端口
+            const lastLocalPort = selectedLocalPorts.length > 0 ? 
+                selectedLocalPorts[selectedLocalPorts.length - 1].port + 1 : 8000;
+            
+            try {
+                const response = await fetch('api/ports/find-available', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start_port: lastLocalPort, count: 1 })
+                });
+                const data = await response.json();
+                
+                if (data.available_ports && data.available_ports.length > 0) {
+                    selectedLocalPorts.push(data.available_ports[0]);
+                    renderLocalPorts();
+                }
+            } catch (error) {
+                console.error('查找可用端口失败:', error);
+            }
+            
+            // 添加新的远程端口（从可用端口中选择）
+            const lastRemotePort = selectedRemotePorts.length > 0 ? 
+                selectedRemotePorts[selectedRemotePorts.length - 1].port + 1 : 8080;
+            
+            // 查找一个未使用的远程端口
+            const usedRemotePorts = new Set(
+                Array.from(document.querySelectorAll('#remotePortsList input[type="checkbox"]'))
+                    .map(cb => parseInt(cb.value))
+            );
+            
+            let newRemotePort = lastRemotePort;
+            while (usedRemotePorts.has(newRemotePort) && newRemotePort < 65535) {
+                newRemotePort++;
+            }
+            
+            if (newRemotePort < 65535) {
+                // 在远程端口列表中添加新选项
+                const remoteList = document.getElementById('remotePortsList');
+                const newItem = document.createElement('div');
+                newItem.className = 'service-item';
+                newItem.onclick = function() { toggleRemotePort(newRemotePort); };
+                newItem.style.cursor = 'pointer';
+                newItem.innerHTML = `
+                    <input type="checkbox" id="remote_${newRemotePort}" value="${newRemotePort}">
+                    <strong>${newRemotePort}</strong>
+                    <span class="tag tag-suggest">可用</span>
+                    - 手动添加
+                `;
+                remoteList.appendChild(newItem);
+            }
+        }
+        
+        function updateMappingSummary() {
+            const remoteCheckboxes = document.querySelectorAll('#remotePortsList input[type="checkbox"]:checked');
+            
+            // 获取远程端口
+            const remotePorts = Array.from(remoteCheckboxes).map(cb => parseInt(cb.value));
+            
+            // 获取本地端口（从编辑框读取）
+            const localPorts = [];
+            selectedLocalPorts.forEach((port, index) => {
+                const editInput = document.getElementById(`local_edit_${port.port}`);
+                if (editInput) {
+                    localPorts.push(parseInt(editInput.value));
+                } else {
+                    localPorts.push(port.port);
+                }
+            });
+            
+            const summaryDiv = document.getElementById('portMappingSummary');
+            
+            if (remotePorts.length === 0 || localPorts.length === 0) {
+                summaryDiv.innerHTML = '<p style="color: #666;">请选择远程端口和本地端口</p>';
+                return;
+            }
+            
+            // 创建映射关系（一对一映射，多余的一方截断）
+            const mappings = [];
+            const minLength = Math.min(remotePorts.length, localPorts.length);
+            
+            for (let i = 0; i < minLength; i++) {
+                mappings.push({
+                    remote: remotePorts[i],
+                    local: localPorts[i]
+                });
+            }
+            
+            summaryDiv.innerHTML = mappings.map(m => `
+                <div class="service-item">
+                    <span class="tag state-closed">远程 ${m.remote}</span>
+                    →
+                    <span class="tag state-open">本地 ${m.local}</span>
+                </div>
+            `).join('');
+            
+            updateTestPortSelect();
+        }
+        
+        // 显示端口详情
+        function showPortDetails(port) {
+            const portInfo = scanData.open_ports.find(p => p.port === port) || 
+                           scanData.closed_ports.find(p => p.port === port);
+            
+            if (portInfo) {
+                document.getElementById('modalPortTitle').textContent = `端口 ${port} 详情`;
+                document.getElementById('modalPortContent').innerHTML = `
+                    <p><strong>端口号:</strong> ${portInfo.port}</p>
+                    <p><strong>协议:</strong> ${portInfo.protocol}</p>
+                    <p><strong>状态:</strong> ${portInfo.state}</p>
+                    <p><strong>服务:</strong> ${portInfo.service}</p>
+                    ${portInfo.product ? `<p><strong>产品:</strong> ${portInfo.product}</p>` : ''}
+                    ${portInfo.version ? `<p><strong>版本:</strong> ${portInfo.version}</p>` : ''}
+                    <p><strong>常见用途:</strong> ${portInfo.description}</p>
+                `;
+                document.getElementById('portModal').classList.add('active');
+            }
+        }
+        
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('portModal').classList.remove('active');
+        }
+        
+        // 折叠/展开卡片
+        function toggleCard(cardId) {
+            const card = document.getElementById(cardId);
+            card.classList.toggle('collapsed');
+        }
+        
+        // 文件选择
+        let currentTestFilePath = '';
+        
+        async function selectTestFile() {
+            const folderPath = document.getElementById('httpFolderPath').value || '/home';
+            currentTestFilePath = folderPath;
+            await browseFiles(folderPath);
+            document.getElementById('fileModal').classList.add('active');
+        }
+        
+        async function browseFiles(path) {
+            try {
+                const response = await fetch('api/folder/list', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path })
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                
+                let html = `
+                    <div style="margin-bottom: 10px;">
+                        <strong>当前路径:</strong> ${data.current_path}
+                        ${data.parent_path !== data.current_path ? 
+                            `<button class="btn btn-primary" style="padding: 3px 10px; font-size: 11px; margin-left: 10px;" 
+                                    onclick="browseFiles('${data.parent_path}')">上级目录</button>` : ''}
+                    </div>
+                    <div class="service-list" style="max-height: 300px;">
+                `;
+                
+                // 显示文件夹
+                data.items.filter(item => item.is_dir).forEach(item => {
+                    html += `
+                        <div class="service-item" style="cursor: pointer;" onclick="browseFiles('${item.path}')">
+                            📁 ${item.name}
+                        </div>
+                    `;
+                });
+                
+                // 显示文件
+                data.items.filter(item => !item.is_dir).forEach(item => {
+                    html += `
+                        <div class="service-item" style="cursor: pointer;" onclick="selectFile('${item.name}')">
+                            📄 ${item.name} (${(item.size / 1024 / 1024).toFixed(2)} MB)
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                html += `
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-danger" onclick="closeFileModal()">取消</button>
+                    </div>
+                `;
+                
+                document.getElementById('fileModalContent').innerHTML = html;
+            } catch (error) {
+                console.error('浏览文件失败:', error);
+            }
+        }
+        
+        function selectFile(fileName) {
+            document.getElementById('testFileName').value = fileName;
+            updateTestUrl();
+            closeFileModal();
+        }
+        
+        function closeFileModal() {
+            document.getElementById('fileModal').classList.remove('active');
+        }
+        
+        // 创建FRPC配置
+        async function createFrpc() {
+            const serverIp = document.getElementById('frpcServerIp').value;
+            const serverPort = document.getElementById('frpcServerPort').value;
+            const token = document.getElementById('frpcToken').value;
+            const user = document.getElementById('frpcUser').value;
+            
+            if (!serverIp || !serverPort) {
+                alert('请填写FRP服务器地址');
+                return;
+            }
+            
+            // 获取端口映射
+            const remoteCheckboxes = document.querySelectorAll('#remotePortsList input[type="checkbox"]:checked');
+            const localCheckboxes = document.querySelectorAll('#localPortsList input[type="checkbox"]:checked');
+            
+            const remotePorts = Array.from(remoteCheckboxes).map(cb => parseInt(cb.value));
+            const localPorts = Array.from(localCheckboxes).map(cb => parseInt(cb.value));
+            
+            if (remotePorts.length === 0 || localPorts.length === 0) {
+                alert('请至少配置一个端口映射');
+                return;
+            }
+            
+            // 创建映射关系
+            const mappings = [];
+            const minLength = Math.min(remotePorts.length, localPorts.length);
+            for (let i = 0; i < minLength; i++) {
+                mappings.push({
+                    remote: remotePorts[i],
+                    local: localPorts[i]
+                });
+            }
+            
+            try {
+                const response = await fetch('api/frpc/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        server_ip: serverIp,
+                        server_port: serverPort,
+                        token,
+                        user,
+                        mappings
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('创建配置失败: ' + data.error);
+                    return;
+                }
+                
+                frpcConfigPath = data.config_path;
+                
+                document.getElementById('frpcConfigPreview').style.display = 'block';
+                document.getElementById('frpcConfigPreview').textContent = data.config_content;
+                
+                alert('配置已创建: ' + data.config_path);
+                
+            } catch (error) {
+                alert('创建配置出错: ' + error.message);
+            }
+        }
+        
+        // 启动FRPC
+        async function startFrpc() {
+            if (!frpcConfigPath) {
+                alert('请先创建配置');
+                return;
+            }
+            
+            try {
+                const response = await fetch('api/frpc/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config_path: frpcConfigPath })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    let errorHtml = `
+                        <div class="test-result test-failed">
+                            <p><strong>状态:</strong> <span class="status-badge badge-stopped">启动失败</span></p>
+                            <p><strong>错误:</strong> ${data.error}</p>
+                    `;
+                    
+                    if (data.stderr) {
+                        errorHtml += `<p><strong>错误日志:</strong></p><div class="code-block">${data.stderr}</div>`;
+                    }
+                    
+                    if (data.stdout) {
+                        errorHtml += `<p><strong>输出日志:</strong></p><div class="code-block">${data.stdout}</div>`;
+                    }
+                    
+                    if (data.config_content) {
+                        errorHtml += `<p><strong>配置文件:</strong></p><div class="code-block">${data.config_content}</div>`;
+                    }
+                    
+                    errorHtml += '</div>';
+                    
+                    document.getElementById('frpcStatus').innerHTML = errorHtml;
+                    return;
+                }
+                
+                currentFrpcId = data.frpc_id;
+                
+                document.getElementById('frpcStatus').innerHTML = `
+                    <p><strong>状态:</strong> <span class="status-badge badge-running">运行中</span></p>
+                    <p><strong>FRPC ID:</strong> ${data.frpc_id}</p>
+                    <p><strong>启动时间:</strong> ${data.start_time}</p>
+                `;
+                
+            } catch (error) {
+                alert('启动出错: ' + error.message);
+            }
+        }
+        
+        // 停止FRPC
+        async function stopFrpc() {
+            if (!currentFrpcId) {
+                alert('没有运行的FRPC进程');
+                return;
+            }
+            
+            try {
+                await fetch(`api/frpc/stop/${currentFrpcId}`, { method: 'POST' });
+                
+                currentFrpcId = null;
+                document.getElementById('frpcStatus').innerHTML = '<p><strong>状态:</strong> <span class="status-badge badge-stopped">已停止</span></p>';
+                
+            } catch (error) {
+                alert('停止出错: ' + error.message);
+            }
+        }
+        
+        // 文件夹选择
+        let currentBrowsePath = '';
+        
+        async function selectFolder() {
+            const currentPath = document.getElementById('httpFolderPath').value || '/home';
+            currentBrowsePath = currentPath;
+            await browseFolder(currentPath);
+            document.getElementById('folderModal').classList.add('active');
+        }
+        
+        async function browseFolder(path) {
+            try {
+                const response = await fetch('api/folder/list', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path })
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                
+                currentBrowsePath = data.current_path;
+                
+                let html = `
+                    <div style="margin-bottom: 10px;">
+                        <strong>当前路径:</strong> ${data.current_path}
+                        ${data.parent_path !== data.current_path ? 
+                            `<button class="btn btn-primary" style="padding: 3px 10px; font-size: 11px; margin-left: 10px;" 
+                                    onclick="browseFolder('${data.parent_path}')">上级目录</button>` : ''}
+                    </div>
+                    <div class="service-list" style="max-height: 300px;">
+                `;
+                
+                data.items.forEach(item => {
+                    if (item.is_dir) {
+                        html += `
+                            <div class="service-item" style="cursor: pointer;" onclick="browseFolder('${item.path}')">
+                                📁 ${item.name}
+                            </div>
+                        `;
+                    }
+                });
+                
+                html += '</div>';
+                html += `
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-success" onclick="confirmFolder()">选择此文件夹</button>
+                        <button class="btn btn-danger" onclick="closeFolderModal()">取消</button>
+                    </div>
+                `;
+                
+                document.getElementById('folderModalContent').innerHTML = html;
+            } catch (error) {
+                console.error('浏览文件夹失败:', error);
+            }
+        }
+        
+        function confirmFolder() {
+            document.getElementById('httpFolderPath').value = currentBrowsePath;
+            closeFolderModal();
+        }
+        
+        function closeFolderModal() {
+            document.getElementById('folderModal').classList.remove('active');
+        }
+        
+        // 更新HTTP服务器端口选择
+        function updateHttpServerPorts() {
+            const select = document.getElementById('httpServerPort');
+            const prev = select.value;
+            select.innerHTML = selectedLocalPorts.map((port, i) => 
+                `<option value="${port.port}">${port.port}</option>`
+            ).join('');
+            if (prev && selectedLocalPorts.some(p => String(p.port) === prev)) {
+                select.value = prev;
+            }
+            syncTestPortFromHttpPort();
+        }
+        
+        // 从HTTP服务器端口同步到下载测试映射端口
+        function syncTestPortFromHttpPort() {
+            const httpSelect = document.getElementById('httpServerPort');
+            const testSelect = document.getElementById('testServerPort');
+            if (!httpSelect.value || !testSelect.options.length) return;
+            
+            const httpIdx = httpSelect.selectedIndex;
+            if (httpIdx >= 0 && httpIdx < testSelect.options.length) {
+                testSelect.selectedIndex = httpIdx;
+            }
+            updateTestUrl();
+        }
+        
+        // 更新测试URL
+        function updateTestUrl() {
+            const serverIp = document.getElementById('frpcServerIp').value;
+            const testServerPort = document.getElementById('testServerPort');
+            const testFileName = document.getElementById('testFileName').value || '50M';
+            
+            if (serverIp && testServerPort && testServerPort.value) {
+                document.getElementById('testUrl').value = `http://${serverIp}:${testServerPort.value}/${testFileName}`;
+            }
+        }
+        
+        // 更新测试端口选择
+        function updateTestPortSelect() {
+            const select = document.getElementById('testServerPort');
+            const remoteCheckboxes = document.querySelectorAll('#remotePortsList input[type="checkbox"]:checked');
+            const remotePorts = Array.from(remoteCheckboxes).map(cb => parseInt(cb.value));
+            
+            select.innerHTML = remotePorts.map(port => 
+                `<option value="${port}">${port}</option>`
+            ).join('');
+            
+            syncTestPortFromHttpPort();
+        }
+        
+        // 启动HTTP服务器
+        async function startHttpServer() {
+            const folderPath = document.getElementById('httpFolderPath').value;
+            const portSelect = document.getElementById('httpServerPort');
+            const port = portSelect.value || 0;
+            
+            if (!folderPath) {
+                alert('请输入文件夹路径');
+                return;
+            }
+            
+            try {
+                const response = await fetch('api/httpserver/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder_path: folderPath, port: parseInt(port) })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('启动失败: ' + data.error);
+                    return;
+                }
+                
+                currentHttpServerId = data.server_id;
+                
+                document.getElementById('httpServerStatus').innerHTML = `
+                    <p><strong>状态:</strong> <span class="status-badge badge-running">运行中</span></p>
+                    <p><strong>服务器ID:</strong> ${data.server_id}</p>
+                    <p><strong>端口:</strong> ${data.port}</p>
+                    <p><strong>文件夹:</strong> ${data.folder_path}</p>
+                    <p><strong>启动时间:</strong> ${data.start_time}</p>
+                `;
+                
+            } catch (error) {
+                alert('启动出错: ' + error.message);
+            }
+        }
+        
+        // 停止HTTP服务器
+        async function stopHttpServer() {
+            if (!currentHttpServerId) {
+                alert('没有运行的HTTP服务器');
+                return;
+            }
+            
+            try {
+                await fetch(`api/httpserver/stop/${currentHttpServerId}`, { method: 'POST' });
+                
+                currentHttpServerId = null;
+                document.getElementById('httpServerStatus').innerHTML = '<p><strong>状态:</strong> <span class="status-badge badge-stopped">已停止</span></p>';
+                
+            } catch (error) {
+                alert('停止出错: ' + error.message);
+            }
+        }
+        
+        // 测试下载
+        let downloadAbortController = null;
+        let downloadStartTime = 0;
+        let downloadTotalBytes = 0;
+        
+        async function testDownload() {
+            const url = document.getElementById('testUrl').value;
+            
+            if (!url) {
+                alert('请输入测试URL');
+                return;
+            }
+            
+            // 验证本地HTTP服务器是否已启动，未启动则自动启动
+            const httpPort = document.getElementById('httpServerPort').value;
+            const httpFolder = document.getElementById('httpFolderPath').value;
+            if (httpPort && httpFolder) {
+                try {
+                    const statusResp = await fetch('api/httpserver/status');
+                    const statusData = await statusResp.json();
+                    let serverRunning = false;
+                    for (const sid in statusData) {
+                        if (statusData[sid].port == httpPort) {
+                            serverRunning = true;
+                            break;
+                        }
+                    }
+                    if (!serverRunning) {
+                        document.getElementById('testResults').innerHTML = '<div style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px;">本地HTTP服务器未启动，正在自动启动...</div>';
+                        const startResp = await fetch('api/httpserver/start', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ folder_path: httpFolder, port: parseInt(httpPort) })
+                        });
+                        const startData = await startResp.json();
+                        if (startData.error) {
+                            document.getElementById('testResults').innerHTML = `<div class="test-result test-failed"><p><strong>启动HTTP服务器失败:</strong> ${startData.error}</p></div>`;
+                            return;
+                        }
+                        currentHttpServerId = startData.server_id;
+                        document.getElementById('httpServerStatus').innerHTML = `
+                            <p><strong>状态:</strong> <span class="status-badge badge-running">运行中</span></p>
+                            <p><strong>服务器ID:</strong> ${startData.server_id}</p>
+                            <p><strong>端口:</strong> ${startData.port}</p>
+                            <p><strong>文件夹:</strong> ${startData.folder_path}</p>
+                            <p><strong>启动时间:</strong> ${startData.start_time}</p>
+                        `;
+                    }
+                } catch (e) {
+                    // 忽略检查错误，继续测试
+                }
+            }
+            
+            // 显示进度条
+            document.getElementById('downloadProgress').style.display = 'block';
+            document.getElementById('progressStatus').textContent = '下载中...';
+            document.getElementById('progressPercent').textContent = '0%';
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('currentSpeed').textContent = '0 MB/s';
+            document.getElementById('avgSpeed').textContent = '0 MB/s';
+            document.getElementById('downloadedSize').textContent = '0 MB';
+            document.getElementById('downloadTime').textContent = '0 秒';
+            document.getElementById('startTestBtn').style.display = 'none';
+            document.getElementById('stopTestBtn').style.display = 'inline-block';
+            document.getElementById('testResults').innerHTML = '';
+            
+            downloadStartTime = Date.now();
+            downloadTotalBytes = 0;
+            
+            // 使用SSE从后端获取下载进度
+            downloadAbortController = new AbortController();
+            
+            try {
+                const response = await fetch('api/test/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                    signal: downloadAbortController.signal
+                });
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+                            
+                            if (data.type === 'progress') {
+                                const contentLen = data.content_length || 0;
+                                const downloaded = data.total_bytes;
+                                const pct = contentLen > 0 ? (downloaded / contentLen * 100).toFixed(1) : '?';
+                                document.getElementById('progressPercent').textContent = contentLen > 0 ? `${pct}%` : `${(downloaded / 1024 / 1024).toFixed(1)} MB`;
+                                document.getElementById('progressBar').style.width = contentLen > 0 ? `${Math.min(downloaded / contentLen * 100, 100)}%` : '0%';
+                                document.getElementById('currentSpeed').textContent = `${data.speed} MB/s`;
+                                document.getElementById('avgSpeed').textContent = `${data.avg_speed} MB/s`;
+                                document.getElementById('downloadedSize').textContent = `${(downloaded / 1024 / 1024).toFixed(2)} MB`;
+                                document.getElementById('downloadTime').textContent = `${data.elapsed} 秒`;
+                            } else if (data.type === 'complete') {
+                                const contentLen = data.content_length || 0;
+                                const downloaded = data.total_bytes;
+                                document.getElementById('progressStatus').textContent = '下载完成!';
+                                document.getElementById('progressPercent').textContent = '100%';
+                                document.getElementById('progressBar').style.width = '100%';
+                                document.getElementById('currentSpeed').textContent = '0 MB/s';
+                                document.getElementById('avgSpeed').textContent = `${data.avg_speed} MB/s`;
+                                document.getElementById('downloadedSize').textContent = `${(downloaded / 1024 / 1024).toFixed(2)} MB`;
+                                document.getElementById('downloadTime').textContent = `${data.elapsed} 秒`;
+                                
+                                document.getElementById('testResults').innerHTML = `
+                                    <div class="test-result test-success">
+                                        <p><strong>URL:</strong> ${data.url}</p>
+                                        <p><strong>文件大小:</strong> ${contentLen > 0 ? (contentLen / 1024 / 1024).toFixed(2) + ' MB' : '未知'}</p>
+                                        <p><strong>已下载:</strong> ${(downloaded / 1024 / 1024).toFixed(2)} MB</p>
+                                        <p><strong>耗时:</strong> ${data.elapsed} 秒</p>
+                                        <p><strong>平均速度:</strong> ${data.avg_speed} MB/s</p>
+                                    </div>
+                                `;
+                            } else if (data.type === 'error') {
+                                document.getElementById('progressStatus').textContent = '下载失败';
+                                document.getElementById('testResults').innerHTML = `
+                                    <div class="test-result test-failed">
+                                        <p><strong>URL:</strong> ${data.url}</p>
+                                        <p><strong>错误:</strong> ${data.error}</p>
+                                    </div>
+                                `;
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    document.getElementById('progressStatus').textContent = '测试已停止';
+                } else {
+                    document.getElementById('testResults').innerHTML = `
+                        <div class="test-result test-failed">
+                            <p><strong>错误:</strong> ${error.message}</p>
+                        </div>
+                    `;
+                }
+            } finally {
+                document.getElementById('startTestBtn').style.display = 'inline-block';
+                document.getElementById('stopTestBtn').style.display = 'none';
+            }
+        }
+        
+        function stopDownload() {
+            if (downloadAbortController) {
+                downloadAbortController.abort();
+                downloadAbortController = null;
+            }
+        }
+        
+        // 批量测试
+        async function batchTest() {
+            const ip = document.getElementById('testConnectIp').value;
+            const remotePort = document.getElementById('selectedRemotePort').value;
+            
+            if (!ip || !remotePort) {
+                alert('请先选择IP和端口');
+                return;
+            }
+            
+            const tests = [
+                { url: `http://${ip}:${remotePort}/50M` },
+                { url: `http://127.0.0.1:${document.getElementById('httpServerPort').value || 8080}/50M` }
+            ];
+            
+            document.getElementById('testLoading').style.display = 'block';
+            document.getElementById('testResults').innerHTML = '';
+            
+            try {
+                const response = await fetch('api/test/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tests })
+                });
+                
+                const data = await response.json();
+                
+                let html = '<h4>批量测试结果</h4>';
+                data.results.forEach((result, index) => {
+                    if (result.status === 'success') {
+                        html += `
+                            <div class="test-result test-success">
+                                <p><strong>测试 ${index + 1}:</strong> ${result.url}</p>
+                                <p><strong>速度:</strong> ${result.speed_mbps.toFixed(2)} Mbps</p>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="test-result test-failed">
+                                <p><strong>测试 ${index + 1}:</strong> ${result.url}</p>
+                                <p><strong>错误:</strong> ${result.error}</p>
+                            </div>
+                        `;
+                    }
+                });
+                
+                document.getElementById('testResults').innerHTML = html;
+                
+            } catch (error) {
+                document.getElementById('testResults').innerHTML = `
+                    <div class="test-result test-failed">
+                        <p><strong>错误:</strong> ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('testLoading').style.display = 'none';
+            }
+        }
+        
+        // 测试连接
+        async function testConnection() {
+            const ip = document.getElementById('testConnectIp').value;
+            const port = document.getElementById('testConnectPort').value;
+            
+            if (!ip || !port) {
+                alert('请输入IP和端口');
+                return;
+            }
+            
+            try {
+                const response = await fetch('api/test/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip, port: parseInt(port) })
+                });
+                
+                const data = await response.json();
+                
+                if (data.reachable) {
+                    document.getElementById('connectionResults').innerHTML = `
+                        <div class="test-result test-success">
+                            <p><strong>IP:</strong> ${data.ip}:${data.port}</p>
+                            <p><strong>状态:</strong> <span class="status-badge badge-running">可达</span></p>
+                            <p><strong>延迟:</strong> ${data.latency_ms.toFixed(2)} ms</p>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('connectionResults').innerHTML = `
+                        <div class="test-result test-failed">
+                            <p><strong>IP:</strong> ${data.ip}:${data.port}</p>
+                            <p><strong>状态:</strong> <span class="status-badge badge-stopped">不可达</span></p>
+                            ${data.error ? `<p><strong>错误:</strong> ${data.error}</p>` : ''}
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                document.getElementById('connectionResults').innerHTML = `
+                    <div class="test-result test-failed">
+                        <p><strong>错误:</strong> ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // 监听复选框变化
+        document.getElementById('remotePortsList').addEventListener('change', updateMappingSummary);
+        document.getElementById('localPortsList').addEventListener('change', updateMappingSummary);
+        
+        // 监听文件名变化
+        document.getElementById('testFileName').addEventListener('input', updateTestUrl);
+        
+        // 初始化加载端口分组
+        loadPortGroups();
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.log
+*.deps_installed
+data/
+dist/
+*.tar.gz
+vendor/web_server/*.db-wal
+vendor/web_server/*.db-shm
+vendor/drawio/webapp/.codegraph/
+vendor/drawio/webapp/WEB-INF/*_secret
+vendor/drawio/webapp/WEB-INF/*_api_key
+vendor/drawio/webapp/WEB-INF/pusher_properties
+

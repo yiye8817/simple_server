@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FRP 工具箱</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a212b; --panel2:#222c39; --border:#2c3a4a;
+    --text:#e6edf3; --muted:#8b98a5; --accent:#3b82f6; --accent2:#2563eb;
+    --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; --mono:'JetBrains Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;}
+  header{padding:16px 24px;background:linear-gradient(90deg,#162033,#1a212b);
+    border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px}
+  header h1{font-size:18px;margin:0;font-weight:600}
+  header .sub{color:var(--muted);font-size:13px}
+  .wrap{display:flex;min-height:calc(100vh - 57px)}
+  .tabs{width:180px;background:var(--panel);border-right:1px solid var(--border);padding:12px 0;flex-shrink:0}
+  .tab{padding:12px 20px;cursor:pointer;color:var(--muted);font-size:14px;border-left:3px solid transparent}
+  .tab:hover{background:var(--panel2);color:var(--text)}
+  .tab.active{color:var(--text);border-left-color:var(--accent);background:var(--panel2)}
+  main{flex:1;padding:24px;overflow:auto}
+  .view{display:none}
+  .view.active{display:block}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:18px}
+  .card h2{margin:0 0 4px;font-size:16px}
+  .card .desc{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--border);
+    color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  textarea{font-family:var(--mono);resize:vertical}
+  .row{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+  button{background:var(--accent);color:#fff;border:none;border-radius:6px;
+    padding:9px 18px;font-size:14px;cursor:pointer;font-weight:500}
+  button:hover{background:var(--accent2)}
+  button.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+  button.ghost:hover{background:var(--panel2)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .log{background:#0a0e13;border:1px solid var(--border);border-radius:8px;padding:12px;
+    font-family:var(--mono);font-size:12px;line-height:1.6;max-height:340px;overflow:auto;
+    white-space:pre-wrap;color:#c9d6e2;margin-top:14px;display:none}
+  .log.show{display:block}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px}
+  .b-run{background:#1e3a5f;color:#7cb7ff}
+  .b-done{background:#14331f;color:var(--ok)}
+  .b-err{background:#3a1717;color:var(--err)}
+  .b-pause{background:#3a3417;color:#e8c95a}
+  .b-cancel{background:#2a2a2a;color:#9aa4ad}
+  button.mini{padding:2px 8px;font-size:11px;margin-left:4px}
+  .fold{border:1px solid var(--border);border-radius:8px;margin-top:14px;background:#0d1117}
+  .fold>summary{cursor:pointer;padding:10px 12px;font-size:13px;color:#c9d6e2;
+    user-select:none;list-style:none;display:flex;align-items:center}
+  .fold>summary::-webkit-details-marker{display:none}
+  .fold>summary::before{content:'\25B6';margin-right:8px;font-size:10px;
+    transition:transform .15s;color:var(--muted)}
+  .fold[open]>summary::before{transform:rotate(90deg)}
+  .fold>summary:hover{color:#fff}
+  .fold-body{padding:0 12px 12px;max-height:440px;overflow:auto}
+  .fold-body table{margin-top:6px}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:500}
+  td.ok{color:var(--ok)} td.warn{color:var(--warn)} td.err{color:var(--err)}
+  .pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .pill{background:var(--panel2);border:1px solid var(--border);border-radius:6px;
+    padding:3px 9px;font-family:var(--mono);font-size:12px}
+  .pill.ok{border-color:#2c5a3a;color:var(--ok)}
+  .stat{display:inline-block;margin-right:24px;font-size:13px;color:var(--muted)}
+  .stat b{color:var(--text);font-size:18px;display:block}
+  .hint{color:var(--muted);font-size:12px;margin-top:6px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛰️ FRP 工具箱</h1>
+  <span class="sub">智能选端口 · IP段发现 · 端口探测 · 带宽测试 · 自动生成配置</span>
+  <span class="sub" style="margin-left:auto">本地HTTP端口: {{ http_port }}</span>
+</header>
+<div class="wrap">
+  <nav class="tabs">
+    <div class="tab active" data-v="discover">🔍 IP段发现</div>
+    <div class="tab" data-v="probe">🎯 端口探测</div>
+    <div class="tab" data-v="bandwidth">⚡ 带宽测试</div>
+    <div class="tab" data-v="portscan">🔧 端口扫描</div>
+    <div class="tab" data-v="database">📂 数据库</div>
+    <div class="tab" data-v="results">📊 测试结果</div>
+    <div class="tab" data-v="configs">📄 配置管理</div>
+    <div class="tab" data-v="cache">🗃️ 扫描缓存</div>
+  </nav>
+  <main>
+    <!-- 发现 -->
+    <section class="view active" id="v-discover">
+      <div class="card">
+        <h2>IP 段发现 <span class="badge b-run" id="bd-discover" style="display:none">运行中</span></h2>
+        <div class="desc">用 nmap 直接扫描指定网段上设定的端口; 云厂商安全设备会让整段 IP 所有端口都"假开放", 因此默认再做 frpc 握手验证, 只保留真正的 frps。端口支持单个/多个/范围。</div>
+        <div class="grid">
+          <div><label>IP 段 (CIDR / 逗号分隔 / nmap范围)</label><input id="d-cidr" placeholder="如 133.18.114.0/24 或 8.138.0.0/16"></div>
+          <div><label>端口 (单个/多个/范围)</label><input id="d-port" value="7000" placeholder="7000 或 7000,8000 或 7000-7100"></div>
+          <div><label>并发数</label><input id="d-conc" type="number" value="4"></div>
+          <div><label>frpc 握手验证(去除假open)</label><select id="d-verify"><option value="true">开启(推荐)</option><option value="false">关闭(仅nmap)</option></select></div>
+          <div><label>验证 token (可空)</label><input id="d-token" placeholder="无认证留空"></div>
+          <div><label>验证 user (可空)</label><input id="d-user"></div>
+          <div><label>握手等待(秒)</label><input id="d-wait" type="number" value="6"></div>
+        </div>
+        <div class="row"><button onclick="runDiscover()">开始扫描</button></div>
+        <div class="log" id="log-discover"></div>
+        <div id="res-discover"></div>
+      </div>
+    </section>
+
+    <!-- 探测 -->
+    <section class="view" id="v-probe">
+      <div class="card">
+        <h2>端口范围映射探测 <span class="badge b-run" id="bd-probe" style="display:none">运行中</span></h2>
+        <div class="desc">对一个 frps 服务器逐端口用 frpc 实测, 验证哪些远程端口能被映射并访问; 成功后自动生成 frpc 配置文件。</div>
+        <div class="grid">
+          <div><label>frps IP</label><input id="p-ip" placeholder="133.18.114.90"></div>
+          <div><label>serverPort</label><input id="p-sp" type="number" value="7000"></div>
+          <div><label>端口范围</label><input id="p-range" placeholder="2000-2050"></div>
+          <div><label>并发</label><input id="p-conc" type="number" value="8"></div>
+          <div><label>映射等待(秒)</label><input id="p-wait" type="number" value="6"></div>
+          <div><label>token (可空)</label><input id="p-token" placeholder="无认证留空"></div>
+          <div><label>user (可空)</label><input id="p-user" placeholder=""></div>
+          <div><label>测试文件 (~/ 下)</label><select id="p-file"></select></div>
+          <div><label>配置纳入端口数(0=全部)</label><input id="p-cfgn" type="number" value="20"></div>
+          <div><label>配置 localPort (空=同remote)</label><input id="p-lp" type="number" placeholder="可空"></div>
+        </div>
+        <div class="row"><button onclick="runProbe()">开始探测</button></div>
+        <div class="log" id="log-probe"></div>
+        <div id="res-probe"></div>
+      </div>
+    </section>
+
+    <!-- 带宽 -->
+    <section class="view" id="v-bandwidth">
+      <div class="card">
+        <h2>智能选端口 + 延迟/带宽测试 <span class="badge b-run" id="bd-bandwidth" style="display:none">运行中</span></h2>
+        <div class="desc">nmap 扫描 top-1000 端口(带缓存), 按 closed 优先选远程端口, 建立 frpc 隧道下载测试文件测延迟与带宽。</div>
+        <div class="grid">
+          <div><label>来源</label><select id="b-mode" onchange="bModeChange()">
+            <option value="single">单个 IP</option>
+            <option value="list">IP 列表</option>
+            <option value="db">数据库批量</option>
+          </select></div>
+          <div id="b-ip-wrap"><label>frps IP</label><input id="b-ip" placeholder="133.18.114.90"></div>
+          <div id="b-ips-wrap" style="display:none;grid-column:span 2"><label>IP 列表(逗号/换行分隔)</label><textarea id="b-ips" rows="3"></textarea></div>
+          <div id="b-max-wrap" style="display:none"><label>最大测试数(db)</label><input id="b-max" type="number" value="10"></div>
+          <div><label>serverPort</label><input id="b-sp" type="number" value="7000"></div>
+          <div><label>top-ports</label><input id="b-top" type="number" value="1000"></div>
+          <div><label>候选端口数</label><input id="b-cand" type="number" value="4"></div>
+          <div><label>测速时长(秒)</label><input id="b-dur" type="number" value="8"></div>
+          <div><label>映射等待(秒)</label><input id="b-wait" type="number" value="6"></div>
+          <div><label>token (可空)</label><input id="b-token" placeholder="无认证留空"></div>
+          <div><label>user (可空)</label><input id="b-user"></div>
+          <div><label>测试文件 (~/ 下)</label><select id="b-file"></select></div>
+          <div><label>忽略缓存重扫</label><select id="b-rescan"><option value="false">否</option><option value="true">是</option></select></div>
+        </div>
+        <div class="row"><button onclick="runBandwidth()">开始测试</button></div>
+        <div class="log" id="log-bandwidth"></div>
+        <div id="res-bandwidth"></div>
+      </div>
+    </section>
+
+    <!-- 端口扫描 -->
+    <section class="view" id="v-portscan">
+      <div class="card">
+        <h2>端口扫描 <span class="badge b-run" id="bd-portscan" style="display:none">运行中</span></h2>
+        <div class="desc">用 nmap 扫描某个 IP 最常用的 N 个端口, 列表展示各端口状态; 可勾选端口做服务/版本详细扫描。</div>
+        <div class="grid">
+          <div><label>目标 IP</label><input id="ps-ip" placeholder="133.18.114.90"></div>
+          <div><label>常用端口数 (top-N)</label><input id="ps-top" type="number" value="100"></div>
+        </div>
+        <div class="row">
+          <button onclick="runPortScan()">扫描端口</button>
+          <button class="ghost" onclick="detailSelected()">详细扫描选中端口 (-sV)</button>
+          <button class="ghost" onclick="cveSelected()">查询已知 CVE (只读)</button>
+          <button class="ghost" onclick="psFilter='all';renderPorts()">全部</button>
+          <button class="ghost" onclick="psFilter='open';renderPorts()">仅 open</button>
+        </div>
+        <div class="log" id="log-portscan"></div>
+        <div id="res-portscan"></div>
+        <div id="res-portdetail"></div>
+        <div id="res-cve"></div>
+      </div>
+    </section>
+
+    <!-- 数据库 -->
+    <section class="view" id="v-database">
+      <div class="card">
+        <h2>resources.db · public_ips</h2>
+        <div class="desc">查看数据库中的 server IP 与描述信息。</div>
+        <div class="row">
+          <input id="db-q" placeholder="搜索 IP 或描述..." style="max-width:280px" onkeydown="if(event.key==='Enter')loadDb(1)">
+          <button onclick="loadDb(1)">搜索</button>
+          <button class="ghost" onclick="$('db-q').value='';loadDb(1)">重置</button>
+        </div>
+        <div id="res-database"></div>
+      </div>
+    </section>
+
+    <!-- 测试结果 -->
+    <section class="view" id="v-results">
+      <div class="card">
+        <h2>带宽测试结果 (bandwidth_results)</h2>
+        <div class="desc">带宽测试成功结果会自动保存到数据库, 这里可查看历史记录。</div>
+        <div class="row">
+          <input id="rs-q" placeholder="搜索 server IP..." style="max-width:280px" onkeydown="if(event.key==='Enter')loadResults(1)">
+          <button onclick="loadResults(1)">搜索</button>
+          <button class="ghost" onclick="$('rs-q').value='';loadResults(1)">刷新</button>
+          <button class="ghost" onclick="clearResults()" style="border-color:#5a2c2c;color:#ff9d9d">清空记录</button>
+        </div>
+        <div id="res-results"></div>
+      </div>
+    </section>
+
+    <!-- 配置 -->
+    <section class="view" id="v-configs">
+      <div class="card">
+        <h2>已生成的 frpc 配置</h2>
+        <div class="desc">探测成功后自动生成的 frpc.toml 配置文件, 可查看或下载。</div>
+        <div class="row"><button class="ghost" onclick="loadConfigs()">刷新列表</button></div>
+        <div id="res-configs"></div>
+        <textarea id="cfg-view" rows="14" style="margin-top:14px;display:none" readonly></textarea>
+      </div>
+    </section>
+
+    <!-- 缓存 -->
+    <section class="view" id="v-cache">
+      <div class="card">
+        <h2>nmap 扫描缓存</h2>
+        <div class="desc">top-ports 扫描结果缓存, 已扫过的 IP 不会重复扫描。</div>
+        <div id="cache-stats" style="margin:14px 0"></div>
+        <div class="row">
+          <button class="ghost" onclick="loadCache()">刷新</button>
+          <button class="ghost" onclick="clearCache()" style="border-color:#5a2c2c;color:#ff9d9d">清空缓存</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// 标签切换
+function gotoTab(name){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.v===name));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  $('v-'+name).classList.add('active');
+  if(name==='configs') loadConfigs();
+  if(name==='cache') loadCache();
+  if(name==='database') loadDb(1);
+  if(name==='results') loadResults(1);
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>gotoTab(t.dataset.v));
+
+// 从发现结果跳转并填入 IP
+function useIp(target, ip, port){
+  if(target==='probe'){ $('p-ip').value=ip; $('p-sp').value=port; gotoTab('probe'); }
+  if(target==='bandwidth'){ $('b-mode').value='single'; bModeChange(); $('b-ip').value=ip; $('b-sp').value=port; gotoTab('bandwidth'); }
+  if(target==='portscan'){ $('ps-ip').value=ip; gotoTab('portscan'); }
+}
+
+function pager(total, page, size, fn){
+  const pages = Math.ceil(total/size) || 1;
+  if(pages<=1) return `<div class="hint">共 ${total} 条</div>`;
+  let h=`<div class="row" style="margin-top:12px"><span class="hint">共 ${total} 条 · 第 ${page}/${pages} 页</span>`;
+  h+=`<button class="ghost" ${page<=1?'disabled':''} onclick="${fn}(${page-1})">上一页</button>`;
+  h+=`<button class="ghost" ${page>=pages?'disabled':''} onclick="${fn}(${page+1})">下一页</button></div>`;
+  return h;
+}
+function esc(s){return (s==null?'':String(s)).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+// 可折叠容器: 标题 + 内容, open 控制默认展开
+function fold(title, body, open){
+  return `<details class="fold" ${open?'open':''}><summary>${title}</summary>`+
+         `<div class="fold-body">${body}</div></details>`;
+}
+
+async function postJSON(url, body){
+  const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return r.json();
+}
+
+// 轮询任务 (支持暂停/继续/中断)
+const CURJOB = {};
+function jobCtlBar(kind, status){
+  let ctl=$('ctl-'+kind);
+  if(!ctl){ const badge=$('bd-'+kind); ctl=document.createElement('span');
+    ctl.id='ctl-'+kind; ctl.style.marginLeft='6px'; badge.after(ctl); }
+  if(status==='running')
+    ctl.innerHTML=`<button class="ghost mini" onclick="jobCtl('${kind}','pause')">⏸ 暂停</button>`+
+                  `<button class="ghost mini" onclick="jobCtl('${kind}','cancel')">⏹ 中断</button>`;
+  else if(status==='paused')
+    ctl.innerHTML=`<button class="ghost mini" onclick="jobCtl('${kind}','resume')">▶ 继续</button>`+
+                  `<button class="ghost mini" onclick="jobCtl('${kind}','cancel')">⏹ 中断</button>`;
+  else ctl.innerHTML='';
+}
+async function jobCtl(kind, action){
+  const id=CURJOB[kind]; if(!id) return;
+  await postJSON('api/job/'+id+'/'+action,{});
+}
+function pollJob(jobId, kind, onDone){
+  const logEl = $('log-'+kind), badge = $('bd-'+kind);
+  CURJOB[kind]=jobId;
+  logEl.classList.add('show'); badge.style.display='inline-block';
+  badge.className='badge b-run'; badge.textContent='运行中'; jobCtlBar(kind,'running');
+  const timer = setInterval(async ()=>{
+    const j = await (await fetch('api/job/'+jobId)).json();
+    logEl.textContent = j.logs.map(l=>`[${l.t}s] ${l.msg}`).join('\n');
+    logEl.scrollTop = logEl.scrollHeight;
+    if(j.status==='running'){ badge.className='badge b-run'; badge.textContent='运行中'; jobCtlBar(kind,'running'); }
+    else if(j.status==='paused'){ badge.className='badge b-pause'; badge.textContent='已暂停'; jobCtlBar(kind,'paused'); }
+    else {
+      clearInterval(timer); jobCtlBar(kind,'');
+      const m={done:['b-done','完成'],error:['b-err','出错'],cancelled:['b-cancel','已中断']};
+      const [cls,txt]=m[j.status]||['b-err',j.status];
+      badge.className='badge '+cls; badge.textContent=txt;
+      if(j.status==='done') onDone(j.result);
+    }
+  }, 1000);
+}
+
+// ---- 发现 ----
+async function runDiscover(){
+  const cidr=$('d-cidr').value.trim();
+  if(!cidr){alert('请输入 IP 段');return;}
+  $('res-discover').innerHTML='';
+  const r = await postJSON('api/discover',{cidr,port_spec:$('d-port').value.trim(),
+    concurrency:+$('d-conc').value, verify:$('d-verify').value==='true',
+    token:$('d-token').value, user:$('d-user').value, wait:+$('d-wait').value});
+  if(r.error){alert(r.error);return;}
+  pollJob(r.job_id,'discover',res=>{
+    let h='<div class="row">';
+    if(res.verified) h+=`<div class="stat"><b>${res.nmap_open}</b>nmap开放</div><div class="stat"><b>${res.count}</b>真正 frps</div>`;
+    else h+=`<div class="stat"><b>${res.count}</b>个开放端口 [${res.port_spec}] (未验证)</div>`;
+    h+='</div>';
+    if(res.hits.length){
+      let t='<table><tr><th>可用 frps (ip:port)</th><th>操作</th></tr>';
+      t+=res.hits.map(x=>`<tr><td class="ok">${x.ip}:${x.port}</td><td>
+         <a href="#" onclick="useIp('probe','${x.ip}',${x.port});return false">端口探测</a> ·
+         <a href="#" onclick="useIp('bandwidth','${x.ip}',${x.port});return false">带宽测试</a> ·
+         <a href="#" onclick="useIp('portscan','${x.ip}',${x.port});return false">端口扫描</a></td></tr>`).join('');
+      t+='</table>';
+      h+=fold(`可用 frps 列表 (${res.hits.length} 个)`, t, res.hits.length<=60);
+    } else h+=`<div class="hint">没有发现真正的 frps (开放的端口都是云安全设备的假 open)。</div>`;
+    $('res-discover').innerHTML=h;
+  });
+}
+
+// ---- 探测 ----
+async function runProbe(){
+  const ip=$('p-ip').value.trim();
+  if(!ip||!$('p-range').value.trim()){alert('请输入 IP 和端口范围');return;}
+  $('res-probe').innerHTML='';
+  const r = await postJSON('api/probe',{
+    ip, server_port:+$('p-sp').value, range:$('p-range').value.trim(),
+    concurrency:+$('p-conc').value, wait:+$('p-wait').value,
+    token:$('p-token').value, user:$('p-user').value, file:$('p-file').value,
+    config_ports:+$('p-cfgn').value, local_port:$('p-lp').value
+  });
+  if(r.error){alert(r.error);return;}
+  pollJob(r.job_id,'probe',res=>{
+    let h=`<div class="row"><div class="stat"><b>${res.ok_ports.length}</b>可映射+访问</div>`;
+    h+=`<div class="stat"><b>${res.mapped_but_inaccessible.length}</b>仅映射成功</div></div>`;
+    h+='<div class="pills">'+res.ok_ports.map(p=>`<span class="pill ok">${p}</span>`).join('')+'</div>';
+    if(res.config_text){
+      h+=`<div class="row" style="margin-top:18px"><b>已生成配置: ${res.config_file}</b>
+          <a href="api/configs/${res.config_file}?download=1" class="ghost" style="padding:6px 14px;border:1px solid var(--border);border-radius:6px;text-decoration:none">下载</a></div>`;
+      h+=`<textarea rows="12" readonly style="margin-top:8px">${res.config_text}</textarea>`;
+    }
+    $('res-probe').innerHTML=h;
+  });
+}
+
+// ---- 带宽 ----
+function bModeChange(){
+  const m=$('b-mode').value;
+  $('b-ip-wrap').style.display = m==='single'?'block':'none';
+  $('b-ips-wrap').style.display = m==='list'?'block':'none';
+  $('b-max-wrap').style.display = m==='db'?'block':'none';
+}
+async function runBandwidth(){
+  const mode=$('b-mode').value;
+  const body={mode, server_port:+$('b-sp').value, top_ports:+$('b-top').value,
+    remote_candidates:+$('b-cand').value, duration:+$('b-dur').value, wait:+$('b-wait').value,
+    token:$('b-token').value, user:$('b-user').value, file:$('b-file').value,
+    rescan:$('b-rescan').value==='true', max_servers:+$('b-max').value};
+  if(mode==='single'){ body.ip=$('b-ip').value.trim(); if(!body.ip){alert('请输入 IP');return;} }
+  if(mode==='list'){ body.ips=$('b-ips').value.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean); }
+  $('res-bandwidth').innerHTML='';
+  const r = await postJSON('api/bandwidth',body);
+  if(r.error){alert(r.error);return;}
+  pollJob(r.job_id,'bandwidth',res=>{
+    let h=`<div class="row"><div class="stat"><b>${res.success}</b>成功</div><div class="stat"><b>${res.failed}</b>失败</div></div>`;
+    if(res.results.length){
+      let t='<table><tr><th>服务器</th><th>远程端口</th><th>延迟(ms)</th><th>TTFB(ms)</th><th>速度(Mbps)</th><th>下载(MB)</th></tr>';
+      t+=res.results.map(x=>`<tr><td>${x.server}</td><td>${x.remote_port}</td><td>${x.latency_avg_ms}</td><td>${x.ttfb_ms}</td><td class="ok">${x.speed_mbps}</td><td>${x.mb}</td></tr>`).join('');
+      t+='</table>';
+      h+=fold(`测试结果 (${res.results.length} 条)`, t, res.results.length<=60);
+    }
+    $('res-bandwidth').innerHTML=h;
+  });
+}
+
+// ---- 配置 ----
+async function loadConfigs(){
+  const j = await (await fetch('api/configs')).json();
+  if(!j.configs.length){$('res-configs').innerHTML='<div class="hint">暂无生成的配置文件</div>';return;}
+  let h='<table><tr><th>文件名</th><th>大小</th><th>修改时间</th><th></th></tr>';
+  h+=j.configs.map(c=>`<tr><td>${c.name}</td><td>${c.size}B</td><td>${c.mtime}</td>
+     <td><a href="#" onclick="viewConfig('${c.name}');return false">查看</a> ·
+     <a href="api/configs/${c.name}?download=1">下载</a></td></tr>`).join('');
+  h+='</table>';
+  $('res-configs').innerHTML=h;
+}
+async function viewConfig(name){
+  const j = await (await fetch('api/configs/'+name)).json();
+  const t=$('cfg-view'); t.style.display='block'; t.value=j.content;
+}
+
+// ---- 缓存 ----
+async function loadCache(){
+  const j = await (await fetch('api/cache/stats')).json();
+  $('cache-stats').innerHTML=`<span class="stat"><b>${j.cached_ips}</b>已缓存 IP</span>
+    <span class="stat"><b>${j.size_mb} MB</b>缓存文件</span>`;
+}
+async function clearCache(){
+  if(!confirm('确定清空扫描缓存?')) return;
+  await fetch('api/cache/clear',{method:'POST'});
+  loadCache();
+}
+
+// ---- 端口扫描 ----
+let psRows=[], psFilter='all';
+async function runPortScan(){
+  const ip=$('ps-ip').value.trim();
+  if(!ip){alert('请输入 IP');return;}
+  $('res-portscan').innerHTML=''; $('res-portdetail').innerHTML=''; $('res-cve').innerHTML=''; psRows=[];
+  const r = await postJSON('api/portscan',{ip, top_ports:+$('ps-top').value});
+  if(r.error){alert(r.error);return;}
+  pollJob(r.job_id,'portscan',res=>{
+    psRows=res.rows;
+    const d=res.dist||{};
+    $('res-portscan').dataset.dist=`up=${res.up} | open ${d.open||0} · closed ${d.closed||0} · filtered ${d.filtered||0}`;
+    renderPorts();
+  });
+}
+function renderPorts(){
+  if(!psRows.length){$('res-portscan').innerHTML='<div class="hint">无端口数据</div>';return;}
+  const rows = psFilter==='open'? psRows.filter(r=>r.state==='open'):psRows;
+  let t='<table><tr><th><input type="checkbox" onchange="toggleAll(this)"></th><th>端口</th><th>状态</th></tr>';
+  t+=rows.map(r=>{const cls=r.state==='open'?'ok':(r.state==='closed'?'warn':'');
+    return `<tr><td><input type="checkbox" class="psck" value="${r.port}" ${r.state==='open'?'checked':''}></td><td>${r.port}</td><td class="${cls}">${r.state}</td></tr>`;}).join('');
+  t+='</table>';
+  let h=`<div class="hint" style="margin-top:10px">${$('res-portscan').dataset.dist||''} (显示 ${rows.length} 个)</div>`;
+  h+=fold(`端口列表 (${rows.length} 个)`, t, rows.length<=60);
+  $('res-portscan').innerHTML=h;
+}
+function toggleAll(cb){document.querySelectorAll('.psck').forEach(x=>x.checked=cb.checked);}
+async function detailSelected(){
+  const ports=[...document.querySelectorAll('.psck:checked')].map(x=>+x.value);
+  if(!ports.length){alert('请先勾选要详细扫描的端口');return;}
+  const ip=$('ps-ip').value.trim();
+  $('res-portdetail').innerHTML='<div class="hint">详细扫描中...</div>';
+  const r = await postJSON('api/portdetail',{ip, ports});
+  if(r.error){alert(r.error);return;}
+  pollJob(r.job_id,'portscan',res=>{
+    let t='<table><tr><th>端口</th><th>状态</th><th>服务</th><th>产品</th><th>版本</th><th>额外</th></tr>';
+    t+=res.rows.map(x=>`<tr><td>${x.port}</td><td>${esc(x.state)}</td><td>${esc(x.service)}</td><td>${esc(x.product)}</td><td>${esc(x.version)}</td><td>${esc(x.extrainfo)}</td></tr>`).join('');
+    t+='</table>';
+    $('res-portdetail').innerHTML=fold(`详细信息 -sV (${res.rows.length} 个端口)`, t, res.rows.length<=60);
+  });
+}
+async function cveSelected(){
+  const ports=[...document.querySelectorAll('.psck:checked')].map(x=>+x.value);
+  if(!ports.length){alert('请先勾选要查询 CVE 的端口');return;}
+  const ip=$('ps-ip').value.trim();
+  $('res-cve').innerHTML='<div class="hint">正在做服务识别并查询已知 CVE (只读, 不向目标发送攻击流量)...</div>';
+  const r = await postJSON('api/cve',{ip, ports});
+  if(r.error){alert(r.error);return;}
+  pollJob(r.job_id,'portscan',res=>{
+    let h='<h3 style="margin-top:18px;font-size:14px">已知 CVE (只读, 数据源 CIRCL cve-search)</h3>';
+    h+='<div class="hint">⚠ 以下仅为版本对应的公开漏洞情报, 未对目标发起任何利用。请仅在获得授权后做验证。</div>';
+    res.rows.forEach(row=>{
+      const svc=[row.service,row.product,row.version].filter(Boolean).join(' ')||'未识别';
+      const n=(row.cves||[]).length;
+      if(!n){
+        h+=fold(`端口 ${row.port} — ${esc(svc)} (无已知 CVE)`,
+                '<div class="hint">未匹配到已知 CVE (可能版本未识别或数据源无记录)。</div>', false);
+        return;
+      }
+      let t='<table><tr><th>CVE</th><th>CVSS</th><th>已被利用</th><th>摘要</th><th>参考</th></tr>';
+      t+=row.cves.map(c=>{
+        const sev=(c.cvss==null)?'':(c.cvss>=7?'warn':'');
+        const refs=(c.references||[]).map(u=>`<a href="${esc(u)}" target="_blank">链接</a>`).join(' ');
+        const nvd=`<a href="https://nvd.nist.gov/vuln/detail/${esc(c.id)}" target="_blank">${esc(c.id)}</a>`;
+        const kev=c.kev?'<span class="warn">KEV</span>':'-';
+        return `<tr><td>${nvd}</td><td class="${sev}">${c.cvss==null?'-':c.cvss}</td><td>${kev}</td><td>${esc(c.summary)}</td><td>${refs}</td></tr>`;
+      }).join('');
+      t+='</table>';
+      h+=fold(`端口 ${row.port} — ${esc(svc)} (${n} 个 CVE)`, t, n<=20);
+    });
+    if((res.verify_methods||[]).length){
+      h+='<h3 style="margin-top:18px;font-size:14px">模拟验证方法 (非破坏性)</h3><ul class="hint" style="line-height:1.8">';
+      h+=res.verify_methods.map(m=>`<li>${esc(m)}</li>`).join('');
+      h+='</ul>';
+    }
+    $('res-cve').innerHTML=h;
+  });
+}
+
+// ---- 数据库查看 ----
+async function loadDb(page){
+  const q=encodeURIComponent($('db-q').value.trim());
+  const j = await (await fetch(`api/db/list?page=${page}&size=50&q=${q}`)).json();
+  let h='<table><tr><th>ID</th><th>Server IP</th><th>端口</th><th>类型</th><th>状态</th><th>描述</th><th>创建时间</th></tr>';
+  h+=j.rows.map(r=>`<tr><td>${r.id}</td><td>${esc(r.server)}</td><td>${esc(r.port)}</td>
+     <td>${esc(r.type)}</td><td>${r.is_active?'<span class="badge b-done">活跃</span>':'<span class="badge">-</span>'}</td>
+     <td>${esc(r.description)}</td><td>${esc(r.created_at)}</td></tr>`).join('');
+  h+='</table>'+pager(j.total,j.page,j.size,'loadDb');
+  $('res-database').innerHTML=h;
+}
+
+// ---- 测试结果查看 ----
+async function loadResults(page){
+  const q=encodeURIComponent($('rs-q').value.trim());
+  const j = await (await fetch(`api/results/list?page=${page}&size=50&q=${q}`)).json();
+  if(!j.rows.length){$('res-results').innerHTML='<div class="hint">暂无测试结果记录</div>';return;}
+  let h='<table><tr><th>ID</th><th>Server</th><th>serverPort</th><th>远程端口</th><th>延迟(ms)</th><th>TTFB(ms)</th><th>速度(Mbps)</th><th>下载(MB)</th><th>时间</th></tr>';
+  h+=j.rows.map(r=>`<tr><td>${r.id}</td><td>${esc(r.server)}</td><td>${esc(r.server_port)}</td>
+     <td>${esc(r.remote_port)}</td><td>${esc(r.latency_ms)}</td><td>${esc(r.ttfb_ms)}</td>
+     <td class="ok">${esc(r.speed_mbps)}</td><td>${esc(r.mb)}</td><td>${esc(r.tested_at)}</td></tr>`).join('');
+  h+='</table>'+pager(j.total,j.page,j.size,'loadResults');
+  $('res-results').innerHTML=h;
+}
+async function clearResults(){
+  if(!confirm('确定清空所有带宽测试结果?')) return;
+  await fetch('api/results/clear',{method:'POST'});
+  loadResults(1);
+}
+
+// ---- 测试文件下拉 ----
+function fmtSize(b){
+  if(b>=1073741824) return (b/1073741824).toFixed(1)+'GB';
+  if(b>=1048576) return (b/1048576).toFixed(1)+'MB';
+  if(b>=1024) return (b/1024).toFixed(1)+'KB';
+  return b+'B';
+}
+async function loadFiles(){
+  const j = await (await fetch('api/files')).json();
+  const opts = j.files.map(f=>`<option value="${f.name}">${f.name} (${fmtSize(f.size)})</option>`).join('');
+  ['p-file','b-file'].forEach(id=>{
+    const sel=$(id); if(!sel) return;
+    sel.innerHTML = opts || `<option value="${j.default}">${j.default}</option>`;
+    if([...sel.options].some(o=>o.value===j.default)) sel.value=j.default;
+  });
+}
+
+// 初始
+(async()=>{ try{ await loadFiles(); await loadCache(); }catch(e){} })();
+</script>
+</body>
+</html>
