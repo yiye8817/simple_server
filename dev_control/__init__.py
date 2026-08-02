@@ -37,6 +37,7 @@ def create_app(config=None):
     from .bulk_files import bp as bulk_files_bp
     from .files_page import bp as files_page_bp
     from .users import bp as users_bp
+    from .updates import bp as updates_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(agents_bp)
     app.register_blueprint(files_bp)
@@ -48,6 +49,7 @@ def create_app(config=None):
     app.register_blueprint(bulk_files_bp)
     app.register_blueprint(files_page_bp)
     app.register_blueprint(users_bp)
+    app.register_blueprint(updates_bp)
     if app.config["ENABLE_LEGACY_TOOLS"]:
         from .legacy import mount_legacy
         mount_legacy(app)

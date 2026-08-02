@@ -47,6 +47,7 @@ export DATA_DIR='/srv/dev-control/data'
 - 文件批量删除：`POST /api/files/bulk-delete`，请求体为 `{"paths":["a.txt","folder"]}`。
 - 用户统计：`GET /api/user-management/users`、`GET /api/user-management/me/stats`
 - 用户访问 Token：`GET|POST /api/user-management/users/<id>/tokens`、`DELETE /api/user-management/users/<id>/tokens/<token_id>`。完整 Token 仅本人或管理员可读取。
+- 服务器自更新：`GET /api/updates`、`POST /api/updates/upload`、`POST /api/updates/<id>/apply`、`POST /api/updates/<id>/rollback`。仅管理员可用。
 
 Agent 启动示例：
 
@@ -55,6 +56,7 @@ clients/device_agent/run.sh --server-url http://127.0.0.1:5000
 ```
 
 ## 打包
+n项目版本保存在根目录 `VERSION`。自更新页面上传安装包时可指定新版本号，并在应用后读取包内的新 `VERSION`。
 
 ```bash
 ./package.sh

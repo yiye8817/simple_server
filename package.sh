@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
-VERSION="${VERSION:-$(date +%Y%m%d-%H%M%S)}"
+VERSION="${VERSION:-$(<VERSION)}"
 OUTPUT="${1:-$SCRIPT_DIR/dist/simple-server-$VERSION.tar.gz}"
 mkdir -p "$(dirname "$OUTPUT")"
 
