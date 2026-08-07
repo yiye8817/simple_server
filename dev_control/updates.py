@@ -1,4 +1,4 @@
-import hashlib, json, os, shutil, tarfile, tempfile, threading, time
+import hashlib, json, os, re, shutil, tarfile, tempfile, threading, time
 from pathlib import Path, PurePosixPath
 from flask import Blueprint, current_app, g, jsonify, render_template, request
 from .db import get_db
@@ -8,6 +8,16 @@ bp=Blueprint("self_updates",__name__)
 BLOCKED={".git",".venv","data","dist","__pycache__"}
 MAX_FILES=15000
 MAX_UNPACKED=1024*1024*1024
+VERSION_PATTERN=re.compile(r"^v?(\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z][0-9A-Za-z.-]*)?)$")
+
+def version_from_filename(filename):
+    name=Path(filename or "").name
+    if not name.lower().endswith(".tar.gz"):return ""
+    stem=name[:-7]
+    for prefix in ("simple-server-","server-","update-"):
+        if stem.lower().startswith(prefix):stem=stem[len(prefix):];break
+    match=VERSION_PATTERN.fullmatch(stem)
+    return match.group(1) if match else ""
 
 def project_root():return Path(__file__).resolve().parent.parent
 def sha(path):
@@ -73,8 +83,10 @@ def list_updates():
 @bp.post("/api/updates/upload")
 @require_user(admin=True)
 def upload():
-    version=str(request.form.get("version","")).strip();upload=request.files.get("file")
-    if not version or not upload or not upload.filename.endswith(".tar.gz"):return jsonify(error="需要版本号和 .tar.gz 文件"),400
+    upload=request.files.get("file")
+    if not upload or not upload.filename.lower().endswith(".tar.gz"):return jsonify(error="需要 .tar.gz 文件"),400
+    version=version_from_filename(upload.filename)
+    if not version:return jsonify(error="无法从文件名获取版本号，请使用 simple-server-1.2.3.tar.gz 格式"),400
     base=Path(current_app.config["DATA_DIR"])/"updates";base.mkdir(parents=True,exist_ok=True);temp=Path(tempfile.mkdtemp(prefix="stage-",dir=base));archive=temp/"update.tar.gz";upload.save(archive);stage=temp/"payload";stage.mkdir()
     try:manifest=extract_safe(archive,stage);diff=compare(manifest,stage)
     except Exception as e:shutil.rmtree(temp,ignore_errors=True);return jsonify(error=str(e)),400
