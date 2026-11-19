@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Word Atlas 英语词汇学习">
+  <title>Word Atlas · 英语词汇学习</title>
+  <link rel="stylesheet" href="/words/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/atlas"><span class="brand-mark">✦</span><span><b>词光</b><small>Word Atlas</small></span></a>
+    <div class="topbar-actions">
+      <label class="accent-picker" aria-label="发音口音"><span>发音</span><button type="button" data-accent="uk" class="accent active">UK</button><button type="button" data-accent="us" class="accent">US</button></label>
+      <a class="back-link" href="/">返回控制台</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">一词一画 · 学在语境里</p>
+      <h1>把每个单词放回真实语境</h1>
+      <p class="lede">搜索 7,298 个雅思词汇，查看释义、插画、搭配和英美发音。</p>
+    </section>
+
+    <section class="toolbar" aria-label="词条筛选">
+      <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索英文单词或中文释义" autocomplete="off"></label>
+      <label><span>CEFR</span><select id="cefr"><option value="">全部级别</option><option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option><option>C2</option></select></label>
+      <label><span>主题</span><input id="topic" type="text" placeholder="如 education"></label>
+      <button id="clear" class="button secondary" type="button">清除筛选</button>
+    </section>
+
+    <section class="results-head"><div><span class="eyebrow">ATLAS</span><h2>词汇图鉴</h2></div><p id="status" role="status">正在加载…</p></section>
+    <section id="word-grid" class="word-grid" aria-live="polite"></section>
+    <nav class="pagination" aria-label="分页"><button id="prev" class="button secondary" type="button">上一页</button><span id="page-info"></span><button id="next" class="button secondary" type="button">下一页</button></nav>
+    <section id="management" class="management" aria-labelledby="management-title">
+      <div class="management-heading"><div><p class="eyebrow">ADMIN WORKSPACE</p><h2 id="management-title">词库管理与接口调试</h2></div><p id="management-auth" class="management-auth">登录控制台后可新建和导入单词。<span data-token-key="devControlToken">管理请求使用控制台登录令牌</span></p></div>
+      <details class="api-demo" open><summary>接口测试 Demo 数据</summary><pre>单个词条：GET /api/words/library
+词条列表：GET /api/words?q=library&amp;page=1&amp;page_size=5
+批量查询：GET /api/words/batch?words=library,abandon
+批量导入：上传 JSON 数组或 JSONL，例如当前页面“新建单词”框中的对象。</pre></details>
+      <div class="management-grid">
+        <form id="create-form" class="manage-card">
+          <h3>新建单词</h3><p class="help">使用词光单词结构填写一个 JSON 对象。</p>
+          <textarea id="create-json" rows="14">{
+  "id": "example",
+  "w": "example",
+  "uk": "/ɪɡˈzɑːmpəl/",
+  "us": "/ɪɡˈzæmpəl/",
+  "senses": [{"pos": "n.", "zh": "例子", "en": "A representative case."}],
+  "ex": [{"en": "This is an example.", "zh": "这是一个例子。"}],
+  "tip": "example 是例子。",
+  "col": [], "fam": [], "syn": [], "ant": [], "m": 0
+}</textarea>
+          <button class="button" type="submit">创建单词</button><pre id="create-result" class="manage-result" aria-live="polite"></pre>
+        </form>
+        <form id="import-form" class="manage-card">
+          <h3>批量导入新单词</h3><p class="help">选择 JSON 数组/JSONL 文件，或粘贴内容后导入。</p>
+          <input id="import-file" type="file" accept=".json,.jsonl,application/json,text/plain">
+          <textarea id="import-text" rows="8" placeholder='[{"id":"example","w":"example",...}] 或每行一个 JSON 对象'></textarea>
+          <label class="check"><input id="import-replace" type="checkbox">完整替换当前手工来源词库</label>
+          <button class="button" type="submit">导入词条</button><pre id="import-result" class="manage-result" aria-live="polite"></pre>
+        </form>
+        <form id="asset-sync-form" class="manage-card">
+          <h3>同步图片和音频</h3><p class="help">将当前词库的 atlas/classic 图片和 UK/US 音频下载到服务器本地。</p>
+          <input id="asset-sync-id" placeholder="留空同步全部；例如 library"><button class="button" type="submit">同步资源</button><pre id="asset-sync-result" class="manage-result" aria-live="polite"></pre>
+        </form>
+      </div>
+      <div class="debug-grid">
+        <form id="debug-word-form" class="manage-card">
+          <h3>单个单词接口</h3><p class="help">调用 <code>GET /api/words/&lt;word_id&gt;</code>。</p>
+          <div class="debug-row"><input id="debug-word-id" required value="library" placeholder="例如 library"><button class="button" type="submit">获取单词</button></div>
+        </form>
+        <form id="debug-list-form" class="manage-card">
+          <h3>单词列表接口</h3><p class="help">调用 <code>GET /api/words</code>，查看分页和筛选响应。</p>
+          <div class="debug-fields"><input id="debug-q" value="library" placeholder="q 英文或中文"><input id="debug-topic" placeholder="topic"><input id="debug-cefr" placeholder="CEFR"><input id="debug-page" type="number" min="1" value="1" placeholder="page"><input id="debug-page-size" type="number" min="1" max="100" value="5" placeholder="page_size"><button class="button" type="submit">获取列表</button></div>
+        </form>
+        <form id="debug-batch-form" class="manage-card">
+          <h3>多个单词接口</h3><p class="help">调用 <code>GET /api/words/batch?words=...</code>，返回所有命中的完整词条。</p>
+          <div class="debug-row"><input id="debug-batch-words" required value="library,abandon" placeholder="library,abandon"><button class="button" type="submit">获取多个单词</button></div>
+        </form>
+      </div>
+      <pre id="debug-result" class="debug-result" aria-live="polite">调试结果会显示在这里。</pre>
+    </section>
+    <p class="credit">词条内容、插画和音频来源：<a href="https://0xlei.tech/words/#/atlas" target="_blank" rel="noreferrer">0xlei.tech Word Atlas</a>，CC BY 4.0。例句朗读使用浏览器 <code>SpeechSynthesis</code>。</p>
+  </main>
+
+  <div id="detail-backdrop" class="detail-backdrop" hidden></div>
+  <aside id="detail" class="detail" aria-label="单词详情" aria-hidden="true" hidden>
+    <button id="detail-close" class="close" type="button" aria-label="关闭">×</button>
+    <div id="detail-content"></div>
+  </aside>
+  <script src="/words/app.js" defer></script>
+</body>
+</html>

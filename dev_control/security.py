@@ -38,3 +38,13 @@ def require_device(fn):
         g.device = dev
         return fn(*a, **kw)
     return wrapped
+
+
+def device_for_user(device_id):
+    """Resolve a management device only after verifying the signed-in user's ownership."""
+    device = get_db().execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
+    if device is None:
+        return None, (jsonify(error="设备不存在"), 404)
+    if g.user["role"] != "admin" and device["owner_id"] != g.user["id"]:
+        return None, (jsonify(error="无设备权限"), 403)
+    return device, None

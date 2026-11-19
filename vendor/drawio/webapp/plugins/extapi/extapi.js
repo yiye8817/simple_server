@@ -28,6 +28,29 @@
 
 	var PROXY_PATH = null;
 	var CONFIG_KEY = 'extApiConfig';
+	var queuedExtFile = '';
+
+	function extFileFromLocation()
+	{
+		try
+		{
+			if (typeof urlParams !== 'undefined' && urlParams['extfile'])
+			{
+				return decodeURIComponent(urlParams['extfile']);
+			}
+			return new URLSearchParams(window.location.search).get('extfile') || '';
+		}
+		catch (e) { return ''; }
+	}
+
+	queuedExtFile = extFileFromLocation();
+	window.addEventListener('message', function(e)
+	{
+		if (e.origin && e.origin !== window.location.origin) { return; }
+		if (!e.data || e.data.action !== 'open-extfile' || !e.data.path) { return; }
+		queuedExtFile = e.data.path;
+		if (typeof window.__extApiOpenQueued === 'function') { window.__extApiOpenQueued(); }
+	});
 	var BLANK_DIAGRAM = '<mxfile><diagram id="0" name="第 1 页">' +
 		'<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" ' +
 		'connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" ' +
@@ -734,33 +757,45 @@
 		// =====================================================================
 		// 打开 / 保存 / 新建 / 分享
 		// =====================================================================
+		function openServerFile(fileId, name, folderId, path)
+		{
+			if (!fileId || !requireConfig()) { return; }
+			var existing = findTabByFileId(fileId);
+			if (existing != null) { switchToTab(existing); return; }
+
+			ui.spinner.spin(document.body, '正在打开…');
+			client.readFile(fileId).then(function(resp)
+			{
+				ui.spinner.stop();
+				var content = extractContent(resp);
+				if (content == null || content === '') { content = BLANK_DIAGRAM; }
+				var fileName = name || String(fileId).split('/').pop();
+				var folderPath = path;
+				if (folderPath == null)
+				{
+					var parts = String(fileId).split('/');
+					folderPath = parts.length > 1 ? parts.slice(0, -1).join('/') : '/';
+				}
+				captureActiveTab();
+				var tab = {
+					fileId: fileId, name: fileName,
+					folderId: folderId != null ? folderId : (folderPath === '/' ? null : folderPath),
+					path: folderPath,
+					data: content, modified: false
+				};
+				ui.extApiTabs.push(tab);
+				ui.extApiCurrentFolder = {folderId: tab.folderId, path: tab.path, name: folderPath};
+				try { loadTab(tab); ui.editor.setStatus('已从服务器打开：' + mxUtils.htmlEntities(fileName)); }
+				catch (err) { alertError(err); }
+			})
+			.catch(function(e) { ui.spinner.stop(); alertError(e); });
+		}
+
 		function openFromServer()
 		{
 			showBrowser('open', function(sel)
 			{
-				var existing = findTabByFileId(sel.fileId);
-				if (existing != null) { switchToTab(existing); return; }
-
-				ui.spinner.spin(document.body, '正在打开…');
-				client.readFile(sel.fileId).then(function(resp)
-				{
-					ui.spinner.stop();
-					var content = extractContent(resp);
-					if (content == null || content === '') { content = BLANK_DIAGRAM; }
-
-					captureActiveTab();
-					var tab = {
-						fileId: sel.fileId, name: sel.name,
-						folderId: sel.folderId, path: sel.path,
-						data: content, modified: false
-					};
-					ui.extApiTabs.push(tab);
-					ui.extApiCurrentFolder = {folderId: sel.folderId, path: sel.path, name: sel.name};
-
-					try { loadTab(tab); ui.editor.setStatus('已从服务器打开：' + mxUtils.htmlEntities(sel.name)); }
-					catch (e) { alertError(e); }
-				})
-				.catch(function(e) { ui.spinner.stop(); alertError(e); });
+				openServerFile(sel.fileId, sel.name, sel.folderId, sel.path);
 			});
 		}
 
@@ -1145,6 +1180,15 @@
 		}
 
 		ensureTabBar();
+
+		window.__extApiOpenQueued = function()
+		{
+			if (!queuedExtFile) { return; }
+			var p = queuedExtFile;
+			queuedExtFile = '';
+			openServerFile(p);
+		};
+		window.__extApiOpenQueued();
 
 		// 仅在 URL 带 ?extapiTest=1 时暴露内部入口，供自动化测试使用（生产环境不激活）
 		if (typeof urlParams !== 'undefined' && urlParams['extapiTest'] === '1')

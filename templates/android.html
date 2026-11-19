@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Android 桌面管理</title>
+<style>
+:root{font:14px Inter,"Noto Sans SC",system-ui;color:var(--ui-text);background:var(--ui-canvas);--line:var(--ui-line);--panel:var(--ui-surface);--blue:var(--ui-accent)}*{box-sizing:border-box}body{margin:0;padding:20px}h1{font-size:21px;margin:0 0 8px}h2{font-size:17px;margin:0 0 14px}p{line-height:1.6}.muted,small{color:var(--ui-muted)}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}.split{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,1fr);gap:16px}.split>*{min-width:0}button,input,select{font:inherit}button{cursor:pointer;border:0;border-radius:8px;background:var(--blue);color:#07111e;padding:9px 13px;font-weight:650;min-height:38px}button.secondary{background:var(--ui-accent-soft);color:var(--ui-text);border:1px solid var(--ui-line)}button:disabled{opacity:.5;cursor:default}input:not([type=checkbox]),select{max-width:100%;padding:9px;border:1px solid var(--ui-line);border-radius:7px;background:var(--ui-field);color:var(--ui-text)}select{min-width:190px}label{display:inline-flex;align-items:center;gap:7px}.toolbar>label{max-width:100%;min-width:0}.toolbar select{min-width:0}input[type=checkbox]{width:19px;height:19px;accent-color:var(--blue)}.wrap{overflow:auto;max-height:560px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 7px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--ui-muted);white-space:nowrap;font-weight:500}td small{display:block;overflow-wrap:anywhere;margin-top:4px}.message{padding:9px 0;min-height:35px;white-space:pre-wrap}.error{color:var(--ui-danger)}.ok{color:var(--ui-success)}.code{font:23px ui-monospace,monospace;letter-spacing:3px;user-select:all}.capabilities{display:flex;gap:7px;flex-wrap:wrap}.badge{padding:5px 9px;border:1px solid var(--ui-line);border-radius:7px;font-size:12px}.badge.warn{border-color:var(--ui-warning);color:var(--ui-warning)}.bar{display:inline-block;background:var(--ui-accent);min-width:0;height:9px;border-radius:3px;vertical-align:middle;max-width:150px}#hours td:nth-child(2){min-width:190px}a{color:var(--ui-accent)}.file-name{overflow-wrap:anywhere}#pairing{margin-bottom:4px}.hidden{display:none}#usageNote{line-height:1.6}#uploadProgress{display:block;width:100%;height:14px;margin-top:14px;accent-color:var(--blue)}@media(max-width:950px){.split{grid-template-columns:1fr}}@media(max-width:600px){body{padding:12px}.panel{padding:13px}input,button,select{font-size:16px}th,td{padding:10px 5px}.wrap{max-height:500px}}
+</style><link rel="stylesheet" href="{{ url_for('static', filename='control-ui.css', v='20261025-1') }}">
+</head>
+<body class="ui-page ui-android">
+<div class="page-heading"><div class="eyebrow">DEVICE CENTER · 设备中心</div><h1>Android 桌面管理</h1><p class="muted">管理已配对平板的应用、文件和前台使用时间。设备离线时保留上次规则。</p></div>
+<div id="message" class="message" role="status" aria-live="polite"></div>
+<section class="panel device-panel"><div class="toolbar"><label>设备 <select id="deviceSelect" aria-label="选择 Android 设备"></select></label><button id="refresh" class="secondary">刷新</button><button id="newCode">配对新设备</button></div><div id="pairing" class="hidden"><p>在平板「桌面管理」中输入此服务器地址和配对码：</p><div id="serverAddress" class="muted"></div><p id="pairCode" class="code"></p><small id="pairExpiry"></small></div><p id="deviceSummary" class="muted">正在加载设备…</p><div id="capabilities" class="capabilities"></div></section>
+<div id="management" class="hidden">
+<section class="panel" id="runtimePanel"><h2>当前前台应用</h2><p class="muted">显示平板观察到的前台与最近活动，每 5 秒刷新。最近活动不是完整运行或后台进程列表。强行停止会通过平板系统设置结束当前应用。</p><p id="runtimeCurrent" class="file-name">等待当前应用报告…</p><p id="runtimeFreshness" class="muted"></p><p id="runtimeNote" class="muted" aria-live="polite"></p><button id="forceStop" disabled>强行停止当前应用</button><p id="runtimeAction" role="status" aria-live="polite"></p><div class="split"><div><h2>最近活动</h2><div id="runtimeRecent" class="file-name"></div></div><div><h2>最近强行停止结果</h2><div id="runtimeResults" class="file-name" aria-live="polite"></div></div></div></section>
+<div class="split"><section class="panel"><h2>应用规则</h2><p class="muted">「允许使用」与「桌面可见」分别控制。关键系统与恢复应用保持可用。跨入口限制需要平板开启无障碍权限。</p><div class="toolbar"><input id="appSearch" type="search" placeholder="搜索应用名称或包名" aria-label="搜索应用"><button id="savePolicy">保存规则</button><span id="policyStatus" class="muted"></span></div><div class="wrap"><table><thead><tr><th>应用</th><th>允许使用</th><th>桌面可见</th></tr></thead><tbody id="apps"></tbody></table></div></section>
+<div><section class="panel"><h2>发送文件 / 安装 APK</h2><p class="muted">支持图片、音频、视频、PDF、Word 和 APK，单文件最多 512 MiB。安装仍可能需要在平板上确认；旧版 .doc 需要兼容的 Office 查看器。</p><div class="toolbar"><input id="fileInput" type="file" aria-label="选择文件"></div><div class="toolbar"><label><input id="openFile" type="checkbox" checked>发送后打开</label><label><input id="installFile" type="checkbox">安装 APK</label></div><button id="upload">发送到平板</button><div id="uploadProgressArea" class="hidden"><progress id="uploadProgress" max="1" value="0" aria-label="文件上传进度"></progress></div><p id="uploadStatus" class="muted" aria-live="polite"></p></section>
+<section class="panel"><h2>已发送文件</h2><p class="muted">离线任务等待设备连接。服务器保留下载 30 天，平板已保存的文件可继续打开。</p><div class="wrap"><table><thead><tr><th>文件</th><th>实际状态</th><th>操作</th></tr></thead><tbody id="files"></tbody></table></div></section></div></div>
+<section class="panel"><h2>前台使用时间</h2><div class="toolbar"><label>日期 <input id="usageDate" type="date"></label><button id="loadUsage" class="secondary">查看</button><label>每小时 <select id="usageApp"><option value="">全部应用</option></select></label></div><p id="usageNote" class="muted"></p><div class="split"><div class="wrap"><table><thead><tr><th>应用</th><th>使用时间</th><th>操作</th></tr></thead><tbody id="usageApps"></tbody></table></div><div class="wrap"><table><thead><tr><th>当地时段</th><th>使用时间</th></tr></thead><tbody id="hours"></tbody></table></div></div></section>
+</div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+let selected='', detail=null, dirty=false, rules={}, usageData=null, refreshing=false;
+let selectionGeneration=0, editGeneration=0, saveGeneration=0, activePolicySave=0;
+let listGeneration=0,detailGeneration=0,filesGeneration=0,usageGeneration=0,uploadGeneration=0,activeUpload=0,fileEditGeneration=0;
+let runtimeData=null,runtimeGeneration=0,runtimeLoadedAt=0,runtimeFailure='',runtimeRefreshing=false;
+let runtimeActionGeneration=0,activeRuntimeAction=0;
+const states={pending:'等待设备领取',claimed:'设备处理中',waiting_user:'等待平板本地确认',done:'已完成',error:'失败',downloaded:'已保存到平板',open_requested:'已请求打开',pending_user_action:'等待平板本地确认',installed:'已安装',viewer_missing:'缺少兼容查看器',expired_download:'下载已过期',failed:'失败'};
+function node(tag,text,cls){const el=document.createElement(tag);if(text!==undefined)el.textContent=String(text);if(cls)el.className=cls;return el;}
+function message(text,error=false){$('message').textContent=text;$('message').className='message'+(error?' error':'');}
+function timestamp(value){return value?new Date(value*1000).toLocaleString():'尚未连接';}
+function duration(ms){const seconds=Math.floor(ms/1000);return seconds>=3600?Math.floor(seconds/3600)+' 小时 '+Math.floor(seconds%3600/60)+' 分':seconds>=60?Math.floor(seconds/60)+' 分 '+seconds%60+' 秒':seconds+' 秒';}
+async function api(path,options={}){const headers=new Headers(options.headers||{});headers.set('Authorization','Bearer '+(localStorage.getItem('devControlToken')||''));const response=await fetch(path,{...options,headers,redirect:'error'});let data;try{data=await response.json();}catch(_){const error=Error('服务器返回异常（'+response.status+'）');error.status=response.status;throw error;}if(!response.ok){const error=Error(response.status===401?'登录已过期，请返回控制台登录。':data.error||'请求失败');error.status=response.status;throw error;}return data;}
+function json(method,body){return {method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)};}
+function current(id,generation){return id===selected&&generation===selectionGeneration;}
+function base(id=selected){if(!id)throw Error('请先选择设备');return '/api/android/devices/'+encodeURIComponent(id);}
+function localDate(zone){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return ['year','month','day'].map(t=>parts.find(p=>p.type===t).value).join('-');}
+function showSummary(){const device=detail.device;$('deviceSummary').textContent=device.name+' · #'+device.id+' · '+(device.online?'在线':'离线')+' · 最后连接 '+timestamp(device.last_seen)+' · '+device.timezone+' · '+device.apps_count+' 个应用';$('capabilities').replaceChildren();for(const [key,label] of [['accessibility_enabled','跨入口应用限制'],['usage_access','使用情况权限'],['install_permission','安装权限']]){const value=device.capabilities[key];$('capabilities').append(node('span',label+'：'+(value===true?'已开启':value===false?'未开启':'尚未上报'),'badge'+(value===true?'':' warn')));} }
+function changeSelection(id){
+  if(id===selected)return false;
+  selected=id;selectionGeneration++;editGeneration++;detailGeneration++;filesGeneration++;usageGeneration++;fileEditGeneration++;runtimeGeneration++;
+  activePolicySave=0;activeUpload=0;dirty=false;rules={};detail=null;usageData=null;
+  runtimeData=null;runtimeFailure='';activeRuntimeAction=0;runtimeActionGeneration++;runtimeLoadedAt=0;
+  $('runtimeAction').textContent='';renderRuntime();
+  for(const name of ['apps','files','usageApps','hours','capabilities'])$(name).replaceChildren();
+  $('savePolicy').disabled=true;$('upload').disabled=false;$('fileInput').value='';$('openFile').checked=true;$('installFile').checked=false;
+  $('usageApp').replaceChildren(node('option','全部应用'));$('usageApp').firstChild.value='';$('usageDate').value='';
+  $('uploadStatus').textContent='';$('uploadProgressArea').classList.add('hidden');$('uploadProgress').value=0;$('uploadProgress').removeAttribute('title');$('uploadProgress').removeAttribute('aria-valuetext');$('usageNote').textContent='';$('policyStatus').textContent=id?'正在加载规则…':'';
+  $('deviceSummary').textContent=id?'正在加载设备 #'+id+'…':'';message('');
+  return true;
+}
+async function listDevices(){
+  const request=++listGeneration,generation=selectionGeneration,data=await api('/api/android/devices');
+  if(request!==listGeneration||generation!==selectionGeneration)return;
+  const old=selected;$('deviceSelect').replaceChildren();
+  for(const device of data.devices){const option=node('option',device.name+' · #'+device.id+(device.online?' · 在线':' · 离线'));option.value=String(device.id);$('deviceSelect').append(option);}
+  const next=data.devices.some(d=>String(d.id)===old)?old:(data.devices.length?String(data.devices[0].id):'');
+  const changed=changeSelection(next);$('deviceSelect').value=selected;$('management').classList.toggle('hidden',!selected);
+  if(!selected){$('deviceSummary').textContent='暂无配对设备。点击「配对新设备」开始。';$('capabilities').replaceChildren();return;}
+  await loadDetail(changed);
+}
+async function loadDetail(changed=false){
+  const id=selected,generation=selectionGeneration,edit=editGeneration,request=++detailGeneration;
+  const data=await api(base(id));
+  if(!current(id,generation)||request!==detailGeneration)return;
+  detail=data;showSummary();
+  if(edit===editGeneration&&(changed||!dirty)){dirty=false;rules=structuredClone(data.policy.apps);renderApps();$('policyStatus').textContent='规则版本 '+data.policy.revision;}
+  if(!activePolicySave)$('savePolicy').disabled=false;
+  if(changed||!$('usageDate').value)$('usageDate').value=localDate(data.device.timezone);
+  await Promise.all([loadFiles(),loadUsage(),loadRuntime()]);
+}
+function runtimeExpired(){return !runtimeData?.runtime||runtimeData.stale||Math.max(0,runtimeData.server_time-runtimeData.runtime.received_at)+performance.now()-runtimeLoadedAt>=30000;}
+function renderRuntime(){
+  const data=runtimeData,report=data?.runtime,expired=runtimeExpired();
+  $('forceStop').disabled=true;$('forceStop').onclick=null;
+  $('runtimeRecent').replaceChildren();$('runtimeResults').replaceChildren();
+  $('runtimeFreshness').textContent='';
+  if(!report){$('runtimeCurrent').textContent='尚无当前前台应用报告';}
+  else{
+    const historical=expired||!data.online||!!runtimeFailure;
+    const state={locked:'平板已锁屏',unavailable:'无障碍服务未连接',unknown:'当前前台应用未知'}[report.state];
+    $('runtimeCurrent').replaceChildren(node('strong',report.state==='foreground'?(historical?'上次观测：':'当前前台：')+report.label:state),node('small',report.package_name));
+    const age=Math.max(0,Math.floor((Math.max(0,data.server_time-report.received_at)+performance.now()-runtimeLoadedAt)/1000));
+    $('runtimeFreshness').textContent='服务器 '+age+' 秒前收到报告 · 平板观测时间 '+new Date(report.observed_at).toLocaleString()+(expired?' · 已过期':'');
+    for(const recent of report.recent){const row=node('p');row.append(node('span',recent.label),node('small',' · '+recent.package_name+' · '+new Date(recent.last_seen).toLocaleString()));$('runtimeRecent').append(row);}
+  }
+  if(!$('runtimeRecent').childElementCount)$('runtimeRecent').append(node('p','尚无最近活动','muted'));
+  for(const task of data?.exit_tasks||[]){const row=node('p'),outcome=task.result;
+    const state=task.status==='done'&&outcome?.state==='force_stopped'?'已确认强行停止':states[task.status]||task.status;
+    row.append(node('span',task.label+' · '+state),node('small',' · '+task.package_name+' · '+timestamp(task.finished_at||task.created_at)));
+    if(outcome?.message)row.append(node('p',outcome.message));
+    else if(outcome?.state)row.append(node('small',outcome.state));
+    $('runtimeResults').append(row);
+  }
+  if(!$('runtimeResults').childElementCount)$('runtimeResults').append(node('p','尚无强行停止任务','muted'));
+  $('runtimeNote').textContent=expired&&report?'当前应用报告已过期，等待平板重新上报':runtimeFailure||data?.blocked_reason||(!report?'等待当前应用报告；请更新平板 Launcher 并开启无障碍服务':'仅可对当前前台应用执行强行停止。');
+  if(!report||expired||runtimeFailure||!data.online||!data.force_stop_allowed||activeRuntimeAction)return;
+  const id=selected,generation=selectionGeneration,request=runtimeGeneration,identity=report.observation_id,pkg=report.package_name,label=report.label;
+  $('forceStop').disabled=false;
+  $('forceStop').onclick=async()=>{
+    if(!current(id,generation)||request!==runtimeGeneration||runtimeExpired()||activeRuntimeAction)return;
+    const action=++runtimeActionGeneration;activeRuntimeAction=action;$('forceStop').disabled=true;
+    $('runtimeAction').textContent='正在提交 '+label+' 的强行停止请求…';
+    const valid=()=>current(id,generation)&&activeRuntimeAction===action;
+    try{
+      await api(base(id)+'/apps/force-stop',json('POST',{package_name:pkg,observation_id:identity}));
+      if(!valid())return;
+      $('runtimeAction').textContent='已排队强行停止 '+label+'，等待平板验证实际结果。';
+      await loadRuntime();
+    }catch(error){if(valid()){$('runtimeAction').textContent='强行停止请求失败：'+error.message;await loadRuntime();}}
+    finally{if(valid()){activeRuntimeAction=0;renderRuntime();}}
+  };
+}
+async function loadRuntime(){
+  const id=selected,generation=selectionGeneration,request=++runtimeGeneration,startedAt=performance.now();
+  if(!id)return;
+  try{
+    const data=await api(base(id)+'/runtime');
+    if(!current(id,generation)||request!==runtimeGeneration)return;
+    // Count response latency as well as the age already measured by the server.
+    runtimeData=data;runtimeLoadedAt=startedAt;runtimeFailure='';renderRuntime();
+  }catch(error){
+    if(!current(id,generation)||request!==runtimeGeneration)return;
+    runtimeFailure=error.status===404?'此服务器尚不支持当前应用报告，请更新服务器。':'当前应用报告刷新失败：'+error.message;
+    renderRuntime();
+  }
+}
+function renderApps(){if(!detail)return;const generation=selectionGeneration;const search=$('appSearch').value.trim().toLowerCase();$('apps').replaceChildren();const visible=detail.apps.filter(app=>(app.label+' '+app.package_name).toLowerCase().includes(search));for(const app of visible){const row=node('tr'),name=node('td');name.append(node('span',app.label||app.package_name),node('small',app.package_name+(app.protected?' · 关键应用':'')));row.append(name);for(const key of ['allowed','visible']){const cell=node('td'),label=node('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=app.protected||rules[app.package_name]?.[key]!==false;toggle.disabled=app.protected;toggle.setAttribute('aria-label',(app.label||app.package_name)+(key==='allowed'?'允许使用':'桌面可见'));toggle.onchange=()=>{if(generation!==selectionGeneration)return;const rule=rules[app.package_name]||{allowed:true,visible:true};rule[key]=toggle.checked;rules[app.package_name]=rule;dirty=true;editGeneration++;$('policyStatus').textContent='有未保存更改';};label.append(toggle);cell.append(label);row.append(cell);}$('apps').append(row);}if(!visible.length){const row=node('tr'),cell=node('td',detail.apps.length?'没有匹配应用':'等待平板上报应用清单');cell.colSpan=3;row.append(cell);$('apps').append(row);}}
+async function loadFiles(){
+  const id=selected,generation=selectionGeneration,request=++filesGeneration;
+  const data=await api(base(id)+'/files');
+  if(!current(id,generation)||request!==filesGeneration)return;
+  $('files').replaceChildren();
+  for(const file of data.files){
+    const row=node('tr'),name=node('td'),status=node('td'),actions=node('td');
+    name.append(node('div',file.filename,'file-name'),node('small',(file.size/1048576).toFixed(2)+' MiB · 下载期限 '+timestamp(file.expires_at)));
+    const state=file.result?.state;status.append(node('span',states[state]||states[file.status]||file.status));
+    if(file.result?.message)status.append(node('small',file.result.message));
+    const open=node('button','再次打开','secondary');
+    open.onclick=()=>run(async()=>{
+      if(!current(id,generation)||request!==filesGeneration)return;
+      open.disabled=true;
+      try{await api(base(id)+'/files/'+file.id+'/open',{method:'POST'});
+        if(!current(id,generation))return;
+        message('已排队打开 '+file.filename+'，等待平板处理。');await loadFiles();
+      }finally{if(current(id,generation))open.disabled=false;}
+    });
+    actions.append(open);row.append(name,status,actions);$('files').append(row);
+  }
+  if(!data.files.length){const row=node('tr'),cell=node('td','尚未发送文件');cell.colSpan=3;row.append(cell);$('files').append(row);}
+}
+async function loadUsage(){const id=selected,generation=selectionGeneration,request=++usageGeneration,day=$('usageDate').value;const data=await api(base(id)+'/usage?date='+encodeURIComponent(day));if(!current(id,generation)||request!==usageGeneration||day!==$('usageDate').value)return;usageData=data;const previous=$('usageApp').value;$('usageApp').replaceChildren(node('option','全部应用'));$('usageApp').firstChild.value='';for(const app of data.apps){const option=node('option',app.label||app.package_name);option.value=app.package_name;$('usageApp').append(option);}$('usageApp').value=data.apps.some(a=>a.package_name===previous)?previous:'';$('usageNote').textContent=(data.permission_granted===false?'平板未授予使用情况权限；下方保留历史记录。':data.permission_granted===null?'等待首次用量同步，当前无已知统计。':'统计前台交互时间，熄屏及锁屏期间不计入。')+' 时区 '+data.timezone+' · 最近同步 '+timestamp(data.last_synced_at);$('usageApps').replaceChildren();for(const app of data.apps){const row=node('tr'),name=node('td'),action=node('td');name.append(node('span',app.label||app.package_name),node('small',app.package_name));const view=node('button','每小时','secondary');view.onclick=()=>{if(!current(id,generation)||request!==usageGeneration)return;$('usageApp').value=app.package_name;renderHours();};action.append(view);row.append(name,node('td',duration(app.total_ms)),action);$('usageApps').append(row);}if(!data.apps.length){const row=node('tr'),cell=node('td',data.permission_granted===true?'该日期暂无已记录使用时长':'尚无该日期可用数据');cell.colSpan=3;row.append(cell);$('usageApps').append(row);}renderHours();}
+function renderHours(){if(!usageData)return;const app=usageData.apps.find(a=>a.package_name===$('usageApp').value),values=new Map((app?app.hours:usageData.hours).map(h=>[h.bucket_start,h.duration_ms]));const max=Math.max(3600000,...values.values());$('hours').replaceChildren();const format=new Intl.DateTimeFormat('zh-CN',{timeZone:usageData.timezone,hour:'2-digit',minute:'2-digit',hour12:false,timeZoneName:'shortOffset'});for(const hour of usageData.hours){const ms=values.get(hour.bucket_start)||0,row=node('tr'),cell=node('td'),bar=node('span',undefined,'bar');bar.style.width=(ms/max*140)+'px';cell.append(bar,node('span',' '+duration(ms)));row.append(node('td',format.format(new Date(hour.bucket_start))),cell);$('hours').append(row);}}
+async function run(action){const generation=selectionGeneration;try{await action();}catch(error){if(generation===selectionGeneration)message(error.message,true);}}
+$('newCode').onclick=()=>run(async()=>{const data=await api('/api/android/pairing-codes',{method:'POST'});$('pairing').classList.remove('hidden');$('serverAddress').textContent=location.origin;$('pairCode').textContent=data.code;$('pairExpiry').textContent='一次有效，请在 '+timestamp(data.expires_at)+' 前使用。';message('配对码已生成。');});
+$('refresh').onclick=()=>run(listDevices);
+$('deviceSelect').onchange=()=>run(async()=>{const changed=changeSelection($('deviceSelect').value);await loadDetail(changed);});
+$('appSearch').oninput=renderApps;
+$('savePolicy').onclick=async()=>{
+  const id=selected,selection=selectionGeneration,edit=editGeneration;
+  if(!id||!detail||String(detail.device.id)!==id)return;
+  const request=++saveGeneration,submitted=structuredClone(rules),button=$('savePolicy');
+  activePolicySave=request;button.disabled=true;
+  const current=()=>id===selected&&selection===selectionGeneration&&activePolicySave===request;
+  try{
+    const data=await api('/api/android/devices/'+encodeURIComponent(id)+'/policy',json('PUT',{apps:submitted}));
+    if(!current())return;
+    detail.policy=data.policy;
+    if(edit===editGeneration){
+      rules=structuredClone(data.policy.apps);dirty=false;editGeneration++;
+      $('policyStatus').textContent='已保存，规则版本 '+data.policy.revision;
+    }else{
+      $('policyStatus').textContent='已保存提交时的规则；有未保存更改';
+    }
+    message('规则已保存，等待平板同步。');
+  }catch(error){
+    if(current())message(error.message,true);
+  }finally{
+    if(current()){activePolicySave=0;button.disabled=false;}
+  }
+};
+$('fileInput').onchange=()=>{fileEditGeneration++;if(!activeUpload){$('uploadStatus').textContent='';$('uploadProgressArea').classList.add('hidden');}const file=$('fileInput').files[0];$('installFile').checked=!!file&&/\.apk$/i.test(file.name);if($('installFile').checked)$('openFile').checked=false;};
+function uploadFile(url,file,onProgress,onSent){
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();
+    xhr.open('POST',url,true);
+    xhr.setRequestHeader('Authorization','Bearer '+(localStorage.getItem('devControlToken')||''));
+    xhr.setRequestHeader('Content-Type','application/octet-stream');
+    // send(File) lets the browser stream the selected file without first
+    // copying the whole body into JavaScript memory.
+    xhr.upload.onprogress=onProgress;
+    xhr.upload.onload=onSent;
+    xhr.onerror=()=>reject(Error('网络中断，上传未获服务器确认；请刷新文件列表后重试。'));
+    xhr.onabort=()=>reject(Error('上传已中止，请刷新文件列表确认服务器是否已收到。'));
+    xhr.ontimeout=()=>reject(Error('上传超时，请刷新文件列表后重试。'));
+    xhr.onload=()=>{
+      let data;
+      try{data=JSON.parse(xhr.responseText);}catch(_){reject(Error('服务器返回异常（'+xhr.status+'），上传未获确认。'));return;}
+      if(xhr.status<200||xhr.status>=300){reject(Error(xhr.status===401?'登录已过期，请返回控制台登录。':data?.error||'上传失败（HTTP '+xhr.status+'）'));return;}
+      if(!data||typeof data!=='object'||!data.file||typeof data.file!=='object'){
+        reject(Error('服务器返回异常，上传未获确认。'));return;
+      }
+      if(xhr.responseURL&&new URL(xhr.responseURL,location.href).origin!==location.origin){reject(Error('服务器返回地址异常，上传未获确认。'));return;}
+      resolve(data);
+    };
+    xhr.send(file);
+  });
+}
+$('upload').onclick=()=>run(async()=>{
+  const id=selected,generation=selectionGeneration,edit=fileEditGeneration,file=$('fileInput').files[0];
+  if(!id||!detail||String(detail.device.id)!==id)throw Error('请等待设备加载');
+  if(!file)throw Error('请先选择文件');if(file.size>512*1024*1024)throw Error('文件超过 512 MiB');
+  if($('installFile').checked&&!/\.apk$/i.test(file.name))throw Error('请选择 APK 文件以安装');
+  const request=++uploadGeneration,button=$('upload'),params=new URLSearchParams({filename:file.name,open:$('openFile').checked?'1':'0',install:$('installFile').checked?'1':'0'}),progress=$('uploadProgress');
+  activeUpload=request;button.disabled=true;$('uploadProgressArea').classList.remove('hidden');
+  progress.max=file.size||1;progress.value=0;progress.removeAttribute('title');progress.removeAttribute('aria-valuetext');
+  $('uploadStatus').textContent='正在上传 '+file.name+' · 0 / '+(file.size/1048576).toFixed(2)+' MiB…';
+  const valid=()=>current(id,generation)&&activeUpload===request;
+  const report=(event,sent=false)=>{
+    if(!valid())return;
+    if(event.lengthComputable&&event.total>0){
+      const percent=Math.floor(event.loaded/event.total*1000)/10;
+      progress.max=event.total;progress.value=event.loaded;
+      progress.title=event.loaded.toLocaleString()+' / '+event.total.toLocaleString()+' 字节';
+      progress.setAttribute('aria-valuetext',percent+'%，'+progress.title);
+      $('uploadStatus').textContent=file.name+'：'+percent+'% · '+(event.loaded/1048576).toFixed(2)+' / '+(event.total/1048576).toFixed(2)+' MiB · '+(sent||event.loaded===event.total?'等待服务器确认…':'正在传输…');
+    }else{
+      progress.removeAttribute('value');progress.removeAttribute('aria-valuetext');
+      $('uploadStatus').textContent=file.name+' · 已传输 '+(event.loaded/1048576).toFixed(2)+' MiB · '+(sent?'等待服务器确认…':'正在传输…');
+    }
+  };
+  try{
+    await uploadFile(base(id)+'/files?'+params,file,event=>report(event),event=>report(event,true));
+    if(!valid())return;
+    progress.max=file.size||1;progress.value=file.size||1;
+    progress.setAttribute('aria-valuetext','100%，服务器已确认 '+file.size.toLocaleString()+' 字节');
+    if(edit===fileEditGeneration){$('uploadStatus').textContent=file.name+' 已上传（'+(file.size/1048576).toFixed(2)+' MiB），等待设备领取。';$('fileInput').value='';}
+    else $('uploadStatus').textContent=file.name+' 已上传；新选择的文件尚未发送。';
+    try{await loadFiles();}catch(error){if(valid())message('文件已上传，但文件列表刷新失败：'+error.message,true);}
+  }catch(error){if(valid())$('uploadStatus').textContent=file.name+' 上传失败：'+error.message;throw error;}
+  finally{if(valid()){activeUpload=0;button.disabled=false;}}
+});
+$('loadUsage').onclick=()=>run(loadUsage);$('usageDate').onchange=()=>run(loadUsage);$('usageApp').onchange=renderHours;
+run(listDevices);
+setInterval(()=>{if(selected&&runtimeData)renderRuntime();},1000);
+setInterval(async()=>{if(!selected||document.hidden||runtimeRefreshing)return;runtimeRefreshing=true;try{await loadRuntime();}finally{runtimeRefreshing=false;}},5000);
+setInterval(async()=>{if(!selected||document.hidden||refreshing)return;refreshing=true;const generation=selectionGeneration;try{await loadDetail();}catch(error){if(generation===selectionGeneration)message(error.message,true);}finally{refreshing=false;}},10000);
+</script></body></html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数学实验室 · Math Lab</title>
+<style>
+:root{--ink:#17252f;--muted:#6b7a82;--cream:#f5f4ed;--paper:#fffefa;--line:#dfe6e3;--green:#72c99b;--green-deep:#287851;--orange:#f58d73;--blue:#71a9e8;--purple:#a187dc;--yellow:#f3cb64;--shadow:0 24px 70px rgba(22,38,45,.14)}
+*{box-sizing:border-box}body{margin:0;background:#e7e7df;color:var(--ink);font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+a{text-decoration:none;color:inherit}.shell{width:min(1440px,calc(100vw - 28px));min-height:calc(100vh - 28px);margin:14px auto;background:var(--cream);border-radius:26px;overflow:hidden;box-shadow:var(--shadow);border:1px solid rgba(23,37,47,.08)}
+header{height:78px;padding:0 42px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.78);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:12px}.brand-mark{width:40px;height:40px;border-radius:12px;background:var(--ink);color:#fff;display:grid;place-items:center;font:26px Georgia,serif}.brand-name{font-weight:850;font-size:17px}.brand-sub{margin-top:2px;color:#8b989e;font-size:10px;letter-spacing:.14em;text-transform:uppercase}.top-link{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}.status-dot{width:7px;height:7px;border-radius:99px;background:var(--green);box-shadow:0 0 0 4px #dff2e6}
+main{padding:62px 64px 52px}.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:46px;align-items:center;max-width:1240px;margin:auto}.eyebrow{display:flex;align-items:center;gap:10px;color:var(--green-deep);font-size:11px;font-weight:850;letter-spacing:.18em}.eyebrow:before{content:"";display:block;width:28px;height:2px;background:var(--green)}h1{margin:17px 0 14px;max-width:650px;font-size:clamp(42px,5.6vw,76px);line-height:1.02;letter-spacing:-.055em;font-weight:850}h1 em{color:var(--green-deep);font-style:normal}.lead{max-width:520px;margin:0;color:var(--muted);font-size:16px;line-height:1.75}.hero-actions{display:flex;gap:10px;margin-top:27px}.btn{height:45px;padding:0 18px;border-radius:12px;display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:800;transition:.2s}.btn-primary{color:#fff;background:var(--ink);box-shadow:0 8px 17px #17252f26}.btn-soft{color:var(--green-deep);background:#e1f3e7;border:1px solid #c1e1ca}.btn:hover{transform:translateY(-2px);box-shadow:0 11px 22px #17252f1c}.hero-art{position:relative;min-height:330px;border:1px solid #dce4dd;border-radius:25px;background:#edf2ec;overflow:hidden}.hero-art:before{content:"";position:absolute;width:280px;height:280px;border-radius:50%;right:-90px;top:-120px;background:#dcefe0}.hero-art:after{content:"";position:absolute;left:-60px;bottom:-90px;width:220px;height:220px;border-radius:50%;border:31px solid #e6dac5}.art-note{position:absolute;left:24px;top:21px;padding:8px 11px;border-radius:9px;background:#fff;color:#718078;font:700 10px ui-monospace,monospace;letter-spacing:.08em}.hero-art svg{position:absolute;inset:24px;width:calc(100% - 48px);height:calc(100% - 48px)}.float-tag{position:absolute;right:22px;bottom:18px;padding:9px 12px;border-radius:11px;background:#fff;color:var(--green-deep);font-size:11px;font-weight:800;box-shadow:0 8px 20px #36494116}
+.section-head{display:flex;justify-content:space-between;align-items:end;max-width:1240px;margin:70px auto 18px}.section-head h2{margin:0;font-size:23px;letter-spacing:-.03em}.section-head p{margin:0;color:#8a969b;font-size:12px}.modules{max-width:1240px;margin:auto;display:grid;grid-template-columns:1fr 1fr;gap:17px}.module{position:relative;min-height:270px;padding:25px;border-radius:20px;background:var(--paper);border:1px solid var(--line);overflow:hidden;transition:.22s}.module:hover{transform:translateY(-4px);box-shadow:0 15px 30px #263a3212;border-color:#c8d7d0}.module-visual{height:116px;margin-bottom:22px;border-radius:14px;position:relative;overflow:hidden}.geometry{background:#fff1ec}.prime{background:#e9e6f7}.module-visual svg{width:100%;height:100%}.module-kicker{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.12em}.module h3{margin:8px 0 6px;font-size:21px}.module p{margin:0;max-width:450px;color:var(--muted);font-size:12px;line-height:1.65}.module-arrow{position:absolute;right:23px;bottom:21px;width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:var(--ink);color:#fff;font-size:18px}.module-badge{padding:5px 8px;border-radius:7px;background:#e4f3e8;color:var(--green-deep);font-size:10px;letter-spacing:0}.module:nth-child(2) .module-badge{background:#eeebfa;color:#6854a1}
+.stats{max-width:1240px;margin:22px auto 0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stat{padding:16px 18px;border-radius:14px;background:#ecefe8;border:1px solid #e0e6df}.stat strong{display:block;font:26px Georgia,serif}.stat span{color:var(--muted);font-size:11px}
+footer{max-width:1240px;margin:54px auto 0;padding-top:20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;color:#94a0a4;font-size:11px}.math-inline{font-family:Georgia,serif;color:#65736f;font-size:14px}
+@media(max-width:900px){main{padding:42px 28px 36px}.hero{grid-template-columns:1fr;gap:28px}.hero-art{min-height:270px}.section-head{margin-top:45px}.modules{grid-template-columns:1fr}}
+@media(max-width:560px){.shell{width:100%;min-height:100vh;margin:0;border-radius:0}header{height:66px;padding:0 18px}.top-link{font-size:0}.top-link .status-dot{margin-right:3px}main{padding:34px 18px 30px}h1{font-size:45px}.lead{font-size:14px}.hero-actions{flex-wrap:wrap}.btn{flex:1;justify-content:center}.hero-art{min-height:235px}.section-head{display:block}.section-head p{margin-top:5px}.module{min-height:260px;padding:19px}.stats{grid-template-columns:1fr 1fr}.stat:last-child{grid-column:1/-1}footer{display:block;line-height:1.8}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header>
+  <a class="brand" href="index.html"><div class="brand-mark">∿</div><div><div class="brand-name">数学实验室</div><div class="brand-sub">Math Lab · Explore & Practice</div></div></a>
+  <div class="top-link"><span class="status-dot"></span>两个互动模块已准备好</div>
+</header>
+<main>
+  <section class="hero">
+    <div>
+      <div class="eyebrow">欢迎进入数学实验室</div>
+      <h1>把公式，变成<br><em>看得见的直觉。</em></h1>
+      <p class="lead">拖一拖、画一画、算一算。用交互图形理解面积，用因数分解发现数字的结构，让数学从纸面走到眼前。</p>
+      <div class="hero-actions"><a class="btn btn-primary" href="area.html">进入面积实验室 <span>→</span></a><a class="btn btn-soft" href="preview.html">探索质数 <span>↗</span></a></div>
+    </div>
+    <div class="hero-art">
+      <div class="art-note">今日数学小观察 / 01</div>
+      <svg viewBox="0 0 560 300" aria-hidden="true">
+        <path d="M80 232 236 70l151 162Z" fill="#ff967f" fill-opacity=".74" stroke="#d76e5a" stroke-width="3"/>
+        <path d="M80 232h307" stroke="#d65343" stroke-width="2" stroke-dasharray="8 6"/>
+        <path d="M236 70v162" stroke="#438dda" stroke-width="2" stroke-dasharray="7 6"/>
+        <text x="220" y="258" fill="#c55d4e" font-size="15" font-weight="700">b = 6</text><text x="249" y="155" fill="#3678bf" font-size="15" font-weight="700">h = 4</text>
+        <rect x="176" y="120" width="139" height="55" rx="15" fill="#fff" fill-opacity=".9"/>
+        <text x="245" y="144" text-anchor="middle" fill="#27343d" font-family="Georgia,serif" font-size="18" font-weight="700">A = ½bh</text><text x="245" y="163" text-anchor="middle" fill="#d76753" font-family="Georgia,serif" font-size="13">= 12 u²</text>
+        <circle cx="453" cy="86" r="39" fill="#73c99a" fill-opacity=".88" stroke="#379965" stroke-width="3"/><path d="M453 86h39" stroke="#287851" stroke-width="2" stroke-dasharray="5 4"/><text x="455" y="80" fill="#287851" font-size="12" font-weight="700">r = 2</text>
+        <path d="M426 180h83M468 140v83" stroke="#9b86d4" stroke-width="7" stroke-linecap="round"/><circle cx="468" cy="180" r="35" fill="none" stroke="#9b86d4" stroke-width="3" stroke-dasharray="5 5"/>
+      </svg>
+      <div class="float-tag">每一格，都是一个线索</div>
+    </div>
+  </section>
+  <div class="section-head"><div><h2>选择一个实验模块</h2><p>从观察开始，随时可以切换</p></div><span class="math-inline">x² + y² = ✦</span></div>
+  <section class="modules">
+    <a class="module" href="area.html">
+      <div class="module-visual geometry"><svg viewBox="0 0 600 150" aria-hidden="true"><path d="M0 120h600M0 90h600M0 60h600M0 30h600M40 0v150M80 0v150M120 0v150M160 0v150M200 0v150M240 0v150M280 0v150M320 0v150M360 0v150M400 0v150M440 0v150M480 0v150M520 0v150M560 0v150" stroke="#f0d5ce"/><path d="M170 122 280 28l125 94Z" fill="#ff987f" fill-opacity=".77" stroke="#d86754" stroke-width="3"/><path d="M170 122h235M280 28v122" stroke="#438dda" stroke-width="2" stroke-dasharray="7 5"/><text x="290" y="144" fill="#c45c4e" font-size="13" font-weight="700">底 b</text></svg></div>
+      <div class="module-kicker"><span>INTERACTIVE GEOMETRY</span><span class="module-badge">拖动 · 拉伸 · 计算</span></div><h3>面积实验室</h3><p>在网格上移动三角形、矩形、圆形与多边形，切换底高，观察公式如何随图形变化。</p><span class="module-arrow">↗</span>
+    </a>
+    <a class="module" href="preview.html">
+      <div class="module-visual prime"><svg viewBox="0 0 600 150" aria-hidden="true"><circle cx="190" cy="76" r="53" fill="#fff" fill-opacity=".75"/><text x="190" y="89" text-anchor="middle" fill="#6752a0" font-family="Georgia,serif" font-size="42" font-weight="700">84</text><path d="M278 76h56M362 76h56" stroke="#957cce" stroke-width="4" stroke-linecap="round"/><rect x="338" y="47" width="42" height="58" rx="10" fill="#f1c962"/><rect x="396" y="47" width="42" height="58" rx="10" fill="#72c99b"/><text x="359" y="83" text-anchor="middle" fill="#70591e" font-weight="800" font-size="15">2</text><text x="417" y="83" text-anchor="middle" fill="#1f6b45" font-weight="800" font-size="15">3</text><circle cx="500" cy="76" r="25" fill="none" stroke="#f18b74" stroke-width="4" stroke-dasharray="6 5"/><text x="500" y="82" text-anchor="middle" fill="#cf6957" font-weight="800" font-size="15">×7</text></svg></div>
+      <div class="module-kicker"><span>NUMBER EXPLORER</span><span class="module-badge">输入 · 分解 · 发现</span></div><h3>质数探险岛</h3><p>输入一个数字，沿着因数路径拆解它，认识质数、合数和唯一分解的奇妙规律。</p><span class="module-arrow">↗</span>
+    </a>
+  </section>
+  <section class="stats"><div class="stat"><strong>2</strong><span>互动学习模块</span></div><div class="stat"><strong>∞</strong><span>可以尝试的答案</span></div><div class="stat"><strong>3.14</strong><span>本实验室统一使用的 π</span></div></section>
+  <footer><span>适合课堂演示、自主探索与课后练习</span><span>Math is a playground.</span></footer>
+</main>
+</div>
+</body>
+</html>

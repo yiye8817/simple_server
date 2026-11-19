@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>面积实验室</title>
+  <style>
+    :root {
+      --ink: #17222d;
+      --muted: #6c7884;
+      --line: #dfe6e8;
+      --paper: #f7f6f1;
+      --panel: rgba(255, 255, 255, 0.9);
+      --green: #69c58f;
+      --green-dark: #2d8c5c;
+      --coral: #ff856f;
+      --blue: #5297e8;
+      --yellow: #f4c95d;
+      --purple: #9775d6;
+      --shadow: 0 18px 46px rgba(29, 46, 55, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background: #ecebe4;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+
+    .app {
+      width: min(1540px, calc(100vw - 28px));
+      height: calc(100vh - 28px);
+      min-height: 680px;
+      margin: 14px auto;
+      display: grid;
+      grid-template-columns: 250px minmax(500px, 1fr) 320px;
+      grid-template-rows: 74px 1fr;
+      overflow: hidden;
+      background: var(--paper);
+      border: 1px solid rgba(23, 34, 45, 0.08);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: rgba(255,255,255,.76);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+      z-index: 5;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      width: 40px; height: 40px; border-radius: 12px;
+      display: grid; place-items: center;
+      background: var(--ink); color: white;
+      font-family: Georgia, serif; font-size: 24px;
+      box-shadow: 0 8px 18px rgba(23,34,45,.18);
+    }
+    .brand h1 { margin: 0; font-size: 18px; letter-spacing: .02em; }
+    .brand p { margin: 2px 0 0; font-size: 11px; color: var(--muted); letter-spacing: .13em; text-transform: uppercase; }
+
+    .top-actions { display: flex; align-items: center; gap: 9px; }
+    .icon-btn, .pill-btn {
+      border: 1px solid var(--line); background: #fff; cursor: pointer;
+      height: 38px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+      transition: .18s ease;
+    }
+    .icon-btn { width: 38px; font-size: 18px; }
+    .pill-btn { padding: 0 15px; gap: 7px; font-size: 13px; font-weight: 650; }
+    .icon-btn:hover, .pill-btn:hover { transform: translateY(-1px); border-color: #bcc8ca; box-shadow: 0 5px 12px rgba(23,34,45,.07); }
+    .pill-btn.primary { background: var(--ink); color: white; border-color: var(--ink); }
+
+    .sidebar, .inspector { background: rgba(255,255,255,.8); overflow: auto; }
+    .sidebar { border-right: 1px solid var(--line); padding: 24px 18px; }
+    .inspector { border-left: 1px solid var(--line); padding: 24px 20px; }
+    .section-label {
+      margin: 0 6px 13px; color: #849099; font-size: 10px; font-weight: 800; letter-spacing: .16em;
+    }
+
+    .shape-list { display: grid; gap: 8px; }
+    .shape-btn {
+      width: 100%; height: 52px; padding: 0 13px;
+      border: 1px solid transparent; border-radius: 13px; background: transparent;
+      display: flex; align-items: center; gap: 12px; cursor: pointer; text-align: left;
+      transition: .18s ease;
+    }
+    .shape-btn:hover { background: #f1f4f1; }
+    .shape-btn.active { background: #eaf6ee; border-color: #bce2ca; color: #246b47; }
+    .shape-icon { width: 32px; height: 32px; display: grid; place-items: center; }
+    .shape-icon svg { width: 28px; height: 28px; overflow: visible; }
+    .shape-name { font-weight: 700; font-size: 14px; }
+    .shape-hint { margin-left: auto; color: #9aa4ab; font-size: 11px; }
+
+    .side-rule { height: 1px; margin: 24px 6px; background: var(--line); }
+    .tip-card {
+      margin-top: 22px; padding: 16px; border-radius: 16px;
+      color: #214633; background: linear-gradient(145deg, #dff2e5, #edf7e9);
+      border: 1px solid #c8e4cf;
+    }
+    .tip-card b { display: block; margin-bottom: 6px; font-size: 13px; }
+    .tip-card p { margin: 0; color: #537060; font-size: 12px; line-height: 1.6; }
+
+    .workspace { position: relative; min-width: 0; overflow: hidden; background: #fafaf6; }
+    #canvas { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; }
+    .canvas-toolbar {
+      position: absolute; left: 18px; top: 16px; display: flex; gap: 7px; z-index: 2;
+      padding: 6px; background: rgba(255,255,255,.92); border: 1px solid var(--line); border-radius: 13px;
+      box-shadow: 0 8px 22px rgba(30,43,50,.08); backdrop-filter: blur(8px);
+    }
+    .canvas-toolbar button { border: 0; background: transparent; width: 34px; height: 30px; border-radius: 8px; cursor: pointer; color: #617079; }
+    .canvas-toolbar button:hover { background: #edf1ef; color: var(--ink); }
+    .zoom-label { min-width: 44px !important; font-size: 11px; font-weight: 700; }
+    .canvas-toolbar .snap-toggle { width: auto; padding: 0 9px; font-size: 11px; font-weight: 750; }
+    .canvas-toolbar .snap-toggle.active { color: #216b46; background: #e4f4e9; box-shadow: inset 0 0 0 1px #b9dec6; }
+    .toolbar-divider { width: 1px; height: 20px; align-self: center; background: var(--line); margin: 0 2px; }
+    .workspace:fullscreen { width: 100vw; height: 100vh; background: #fafaf6; }
+
+    .draw-toast {
+      position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(16px);
+      display: flex; align-items: center; gap: 13px; padding: 9px 10px 9px 16px;
+      background: var(--ink); color: white; border-radius: 14px; opacity: 0; pointer-events: none;
+      box-shadow: 0 12px 28px rgba(23,34,45,.22); transition: .22s ease;
+      font-size: 12px; white-space: nowrap;
+    }
+    .draw-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+    .draw-toast button { border: 0; border-radius: 9px; padding: 7px 10px; font-size: 11px; font-weight: 750; cursor: pointer; }
+    #finishPolygon { background: var(--green); color: #153d28; }
+    #cancelPolygon { background: #34414c; color: white; }
+
+    .inspector-title { display: flex; justify-content: space-between; align-items: flex-start; }
+    .inspector-title h2 { margin: 0; font-size: 20px; }
+    .inspector-title p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .color-dot { width: 13px; height: 13px; margin-top: 5px; border-radius: 50%; background: var(--coral); box-shadow: 0 0 0 5px rgba(255,133,111,.15); }
+
+    .area-card {
+      margin-top: 22px; padding: 18px; border-radius: 17px; color: white;
+      background: linear-gradient(135deg, #22313b, #152029);
+      position: relative; overflow: hidden;
+    }
+    .area-card::after { content:""; position:absolute; width:120px; height:120px; border: 26px solid rgba(255,255,255,.04); border-radius:50%; right:-55px; top:-58px; }
+    .area-card span { display: block; color: #aab5bc; font-size: 11px; letter-spacing: .08em; }
+    .area-value { display: flex; align-items: baseline; gap: 7px; margin-top: 5px; }
+    .area-value strong { font-family: Georgia, serif; font-size: 38px; font-weight: 500; }
+    .area-value em { color: #bdc5ca; font-size: 13px; font-style: normal; }
+
+    .formula-card { margin-top: 18px; padding: 16px; border-radius: 15px; border: 1px solid var(--line); background: #fff; }
+    .formula-card .caption { color: var(--muted); font-size: 11px; }
+    .formula { margin: 9px 0 6px; font-family: Georgia, "Times New Roman", serif; font-size: 25px; }
+    .calculation { color: var(--green-dark); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.55; word-break: break-word; }
+
+    .params { display: grid; gap: 12px; margin-top: 18px; }
+    .guide-picker { margin-top:14px; padding:12px; border:1px solid var(--line); border-radius:12px; background:#fff; }
+    .guide-picker label { display:block; margin-bottom:8px; font-size:11px; font-weight:750; }
+    .guide-picker div { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; }
+    .guide-picker button { height:31px; padding:0 4px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--muted); cursor:pointer; font-size:10px; }
+    .guide-picker button.active { color:#27694a; border-color:#a8d5b8; background:#e8f5ec; font-weight:750; }
+    .param-row { display: grid; grid-template-columns: 1fr 86px; align-items: center; gap: 10px; }
+    .param-row label { font-size: 12px; font-weight: 700; }
+    .param-row label small { display: block; margin-top: 2px; color: var(--muted); font-weight: 450; }
+    .number-wrap { position: relative; }
+    .number-wrap input { width: 100%; height: 38px; padding: 0 28px 0 10px; border: 1px solid var(--line); border-radius: 10px; outline: none; background: #fff; font-weight: 750; }
+    .number-wrap input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(105,197,143,.14); }
+    .number-wrap span { position: absolute; right: 9px; top: 11px; font-size: 11px; color: #98a2a8; pointer-events: none; }
+
+    .legend { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+    .legend div { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 11px; }
+    .legend-line { width: 26px; height: 0; border-top: 2px dashed var(--blue); }
+    .legend-line.base { border-color: var(--coral); }
+    .delete-btn { margin-top: 22px; width: 100%; height: 40px; border: 1px solid #f0d4cf; border-radius: 10px; background: #fff8f7; color: #bc594a; font-size: 12px; font-weight: 750; cursor: pointer; }
+    .delete-btn:hover { background: #ffefec; }
+
+    .empty-state { margin-top: 70px; text-align: center; color: var(--muted); }
+    .empty-state .empty-icon { margin: 0 auto 14px; width: 54px; height: 54px; border: 1px dashed #b8c2c5; border-radius: 17px; display:grid; place-items:center; font-size:25px; }
+    .empty-state b { display:block; color:var(--ink); font-size:14px; margin-bottom:6px; }
+    .empty-state p { font-size:12px; line-height:1.6; }
+
+    .shape-body { cursor: grab; }
+    .shape-body:active { cursor: grabbing; }
+    .shape-outline { vector-effect: non-scaling-stroke; }
+    .selection-box { fill: none; stroke: #26343e; stroke-width: 1.2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+    .handle { fill: white; stroke: #26343e; stroke-width: 1.4; vector-effect: non-scaling-stroke; cursor: nwse-resize; }
+    .vertex { fill: white; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: move; }
+    .measure-label { font-size: 12px; font-weight: 800; paint-order: stroke; stroke: white; stroke-width: 4px; stroke-linejoin: round; }
+    .area-badge text { font-family: Georgia, serif; font-weight: 700; font-size: 13px; }
+    .formula-badge text { pointer-events: none; }
+    .tri-region { cursor: pointer; transition: opacity .16s ease; vector-effect: non-scaling-stroke; }
+    .tri-region:hover { opacity: .78; }
+    .base-target { cursor: pointer; pointer-events: stroke; }
+    .base-target:hover { stroke: rgba(255,94,87,.38); stroke-width: 8; }
+
+    @media (pointer: coarse) {
+      .canvas-toolbar { padding: 8px; gap: 5px; }
+      .canvas-toolbar button { min-width: 40px; height: 36px; }
+      .handle, .vertex { stroke-width: 2.4; }
+    }
+
+
+    .practice-workspace { position: absolute; inset: 0; z-index: 4; padding: 24px; overflow: auto; background: #f4f5f0; }
+    .practice-head { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:16px; }
+    .practice-head h2 { margin:0; font-size:22px; }
+    .practice-head p { margin:5px 0 0; color:var(--muted); font-size:12px; }
+    .score-pill { padding:8px 12px; border-radius:999px; background:#fff; border:1px solid var(--line); font-size:12px; font-weight:750; }
+    .practice-main { min-height:calc(100% - 60px); display:grid; grid-template-columns:minmax(390px,1.15fr) minmax(280px,.85fr); gap:16px; }
+    .problem-card,.scratch-card { min-height:500px; background:#fff; border:1px solid var(--line); border-radius:20px; overflow:hidden; }
+    .problem-card { padding:22px; display:flex; flex-direction:column; }
+    .problem-kicker { color:var(--green-dark); font-size:10px; font-weight:850; letter-spacing:.15em; }
+    .problem-card h3 { margin:7px 0 0; font-size:17px; }
+    #problemSvg { width:100%; flex:1; min-height:330px; margin:10px 0; border-radius:15px; background-color:#fafbf8; background-image:linear-gradient(#e9eeeb 1px,transparent 1px),linear-gradient(90deg,#e9eeeb 1px,transparent 1px); background-size:25px 25px; }
+    .problem-prompt { margin:0; padding:12px 14px; border-radius:12px; background:#f3f7f3; color:#415149; font-size:12px; line-height:1.65; }
+    .scratch-card { display:flex; flex-direction:column; }
+    .scratch-head { height:54px; padding:0 15px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+    .scratch-head b { font-size:13px; }
+    .scratch-tools { display:flex; gap:5px; }
+    .scratch-tools button { border:1px solid var(--line); background:#fff; height:30px; min-width:30px; border-radius:8px; cursor:pointer; font-size:11px; }
+    .scratch-tools button.active { color:#fff; background:var(--ink); border-color:var(--ink); }
+    #scratchCanvas { width:100%; flex:1; min-height:390px; display:block; touch-action:none; cursor:crosshair; background:#fffefb; }
+    .scratch-tip { padding:9px 15px; color:#929da3; font-size:10px; border-top:1px solid var(--line); }
+    .quiz-inspector h2 { margin:0; font-size:20px; }
+    .quiz-inspector .sub { margin:5px 0 18px; color:var(--muted); font-size:12px; }
+    .quiz-tabs { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin-bottom:18px; }
+    .quiz-tabs button { height:34px; border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--muted); cursor:pointer; font-size:11px; }
+    .quiz-tabs button.active { color:#225f41; background:#e9f5ed; border-color:#b9ddc5; font-weight:750; }
+    .quiz-answer-card { padding:17px; border-radius:16px; background:#fff; border:1px solid var(--line); }
+    .quiz-answer-card label { display:block; margin-bottom:9px; font-size:12px; font-weight:750; }
+    .answer-wrap { display:flex; align-items:center; height:46px; border:1px solid #ccd6d7; border-radius:11px; overflow:hidden; }
+    .answer-wrap:focus-within { border-color:var(--green); box-shadow:0 0 0 3px rgba(105,197,143,.14); }
+    #quizAnswer { width:100%; height:100%; border:0; outline:0; padding:0 12px; font-size:20px; font-weight:750; }
+    .answer-wrap span { padding-right:12px; color:#89959c; font-size:11px; white-space:nowrap; }
+    #submitAnswer,#nextQuestion { width:100%; height:43px; margin-top:10px; border:0; border-radius:11px; font-weight:800; cursor:pointer; }
+    #submitAnswer { color:white; background:var(--ink); }
+    #nextQuestion { color:#214f36; background:#dff2e5; }
+    .quiz-feedback { margin-top:14px; padding:12px; border-radius:12px; font-size:12px; line-height:1.6; }
+    .quiz-feedback.correct { color:#1f6c43; background:#e8f6ed; border:1px solid #bae1c8; }
+    .quiz-feedback.wrong { color:#a3493c; background:#fff0ed; border:1px solid #f0c8c1; }
+    .quiz-explanation { margin-top:12px; padding:15px; border-radius:14px; background:#fff; border:1px solid var(--line); }
+    .quiz-explanation b { display:block; margin-bottom:8px; font-size:12px; }
+    .quiz-explanation ol { margin:0; padding-left:18px; color:#52616a; font-size:11px; line-height:1.75; }
+    .pi-note { margin-top:14px; padding:10px 12px; color:#6d5b24; background:#fff8dc; border:1px solid #eadb9a; border-radius:11px; font-size:11px; }
+    .app.practice-mode { grid-template-columns:minmax(660px,1fr) 350px; }
+    .app.practice-mode .sidebar { display:none; }
+    .app.practice-mode #canvas,.app.practice-mode .canvas-toolbar,.app.practice-mode .draw-toast { display:none; }
+    .app.practice-mode #clearBtn,.app.practice-mode #addDefaultBtn,.app.practice-mode #undoBtn,.app.practice-mode #redoBtn { display:none; }
+
+    @media (max-width: 1050px) {
+      .app { grid-template-columns: 190px minmax(430px, 1fr) 280px; }
+      .sidebar { padding: 22px 12px; }
+      .shape-hint { display: none; }
+    }
+    @media (max-width: 820px) {
+      .app { width: 100%; height: 100vh; min-height: 620px; margin: 0; border-radius: 0; grid-template-columns: 76px 1fr; grid-template-rows: 64px 1fr 250px; }
+      .topbar { padding: 0 14px; }
+      .brand p, .top-actions .pill-btn span, .shape-name, .sidebar .section-label, .tip-card, .side-rule { display:none; }
+      .sidebar { grid-row: 2 / 4; padding: 15px 10px; }
+      .shape-btn { justify-content:center; padding:0; }
+      .workspace { grid-column:2; grid-row:2; }
+      .inspector { grid-column:2; grid-row:3; border-left:0; border-top:1px solid var(--line); padding:16px; }
+      .inspector-content { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+      .area-card, .formula-card { margin-top:10px; }
+      .params { margin-top:10px; }
+      .legend, .delete-btn { display:none; }
+    }
+    @media (max-width: 1120px) {
+      .practice-main { grid-template-columns:1fr; }
+      .problem-card,.scratch-card { min-height:440px; }
+    }
+    @media (max-width: 820px) {
+      .app.practice-mode { grid-template-columns:1fr; grid-template-rows:64px minmax(0,1fr) 300px; }
+      .app.practice-mode .workspace { grid-column:1; grid-row:2; }
+      .app.practice-mode .inspector { grid-column:1; grid-row:3; overflow:auto; }
+      .practice-workspace { padding:14px; }
+      .practice-main { display:block; }
+      .practice-head { align-items:flex-start; }
+      .problem-card { min-height:440px; }
+      .scratch-card { min-height:360px; margin-top:12px; }
+      #problemSvg { min-height:300px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">∿</div>
+        <div><h1>面积实验室</h1><p>Interactive geometry</p></div>
+      </div>
+      <div class="top-actions">
+        <a class="pill-btn home-btn" href="index.html" title="返回数学实验室主页">← <span>返回主页</span></a>
+        <button class="icon-btn" id="undoBtn" title="撤销">↶</button>
+        <button class="icon-btn" id="redoBtn" title="重做">↷</button>
+        <button class="pill-btn" id="practiceModeBtn"><span>做题模式</span> ✎</button>
+        <button class="pill-btn" id="clearBtn"><span>清空画布</span> ×</button>
+        <button class="pill-btn primary" id="addDefaultBtn">＋ 添加图形</button>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <div class="section-label">基本图形</div>
+      <div class="shape-list" id="shapeList">
+        <button class="shape-btn active" data-type="triangle">
+          <span class="shape-icon"><svg viewBox="0 0 30 30"><path d="M15 4 27 25H3Z" fill="#ff856f" opacity=".75" stroke="#d76753"/></svg></span>
+          <span class="shape-name">三角形</span><span class="shape-hint">A=½bh</span>
+        </button>
+        <button class="shape-btn" data-type="rectangle">
+          <span class="shape-icon"><svg viewBox="0 0 30 30"><rect x="3" y="7" width="24" height="16" rx="2" fill="#5297e8" opacity=".72" stroke="#317bcf"/></svg></span>
+          <span class="shape-name">矩形</span><span class="shape-hint">A=wh</span>
+        </button>
+        <button class="shape-btn" data-type="square">
+          <span class="shape-icon"><svg viewBox="0 0 30 30"><rect x="5" y="5" width="20" height="20" rx="2" fill="#f4c95d" opacity=".78" stroke="#dba82b"/></svg></span>
+          <span class="shape-name">正方形</span><span class="shape-hint">A=a²</span>
+        </button>
+        <button class="shape-btn" data-type="parallelogram">
+          <span class="shape-icon"><svg viewBox="0 0 30 30"><path d="M8 6h19l-5 18H3Z" fill="#45b8ad" opacity=".72" stroke="#258f86"/></svg></span>
+          <span class="shape-name">平行四边形</span><span class="shape-hint">A=bh</span>
+        </button>
+        <button class="shape-btn" data-type="circle">
+          <span class="shape-icon"><svg viewBox="0 0 30 30"><circle cx="15" cy="15" r="11" fill="#69c58f" opacity=".76" stroke="#3ca56a"/></svg></span>
+          <span class="shape-name">圆形</span><span class="shape-hint">A=3.14r²</span>
+        </button>
+        <button class="shape-btn" data-type="polygon">
+          <span class="shape-icon"><svg viewBox="0 0 30 30"><path d="M7 4 24 6 28 19 18 27 4 21 3 10Z" fill="#9775d6" opacity=".72" stroke="#7652bb"/></svg></span>
+          <span class="shape-name">多边形</span><span class="shape-hint">点选</span>
+        </button>
+      </div>
+      <div class="side-rule"></div>
+      <div class="section-label">使用说明</div>
+      <div class="tip-card"><b>试着动一动</b><p>拖动图形可以移动，拖动边角控制点可以拉伸。网格中每一小格代表 1 个长度单位。</p></div>
+    </aside>
+
+    <section class="workspace" id="workspace">
+      <div class="canvas-toolbar">
+        <button id="zoomOut" title="缩小">−</button>
+        <button class="zoom-label" id="zoomLabel">100%</button>
+        <button id="zoomIn" title="放大">＋</button>
+        <button id="fitBtn" title="重置视图">⌂</button>
+        <span class="toolbar-divider"></span>
+        <button class="snap-toggle active" id="snapToggle" title="将顶点、移动距离和半径吸附到整数网格">⊙ 整数点</button>
+        <button id="fullscreenBtn" title="全屏显示画布">⛶</button>
+      </div>
+      <svg id="canvas" aria-label="可交互几何画布"></svg>
+      <div class="draw-toast" id="drawToast">
+        <span>点击网格添加顶点（至少 3 个），双击可完成</span>
+        <button id="finishPolygon">完成图形</button>
+        <button id="cancelPolygon">取消</button>
+      </div>
+      <div class="practice-workspace" id="practiceWorkspace" hidden>
+        <div class="practice-head"><div><h2>面积练习场</h2><p>看图分析，在草稿板上写下你的演算过程</p></div><div class="score-pill">答对 <span id="quizScore">0</span> / <span id="quizTotal">0</span></div></div>
+        <div class="practice-main">
+          <section class="problem-card">
+            <div class="problem-kicker" id="problemType">单独图形</div>
+            <h3 id="problemTitle">求图形的面积</h3>
+            <svg id="problemSvg" viewBox="0 0 600 420" aria-label="面积题目图形"></svg>
+            <p class="problem-prompt" id="problemPrompt"></p>
+          </section>
+          <section class="scratch-card">
+            <div class="scratch-head"><b>草稿白纸</b><div class="scratch-tools"><button class="active" id="penTool">画笔</button><button id="eraserTool">橡皮</button><button id="clearScratch">清空</button></div></div>
+            <canvas id="scratchCanvas" aria-label="草稿书写区域"></canvas>
+            <div class="scratch-tip">支持鼠标和手指书写 · 可以直接列式演算</div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <aside class="inspector" id="inspector">
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">◇</div><b>还没有选中图形</b><p>从左侧添加一个图形<br/>开始探索面积</p>
+      </div>
+      <div id="inspectorContent" class="inspector-content" hidden>
+        <div>
+          <div class="inspector-title"><div><h2 id="selectedName">三角形</h2><p id="selectedMeta">图形 #1 · 已选中</p></div><i class="color-dot" id="colorDot"></i></div>
+          <div class="area-card"><span>计算面积 AREA</span><div class="area-value"><strong id="areaValue">0</strong><em>平方单位</em></div></div>
+          <div class="formula-card"><div class="caption">面积公式</div><div class="formula" id="formula">A = ½ × b × h</div><div class="calculation" id="calculation"></div></div>
+        </div>
+        <div>
+          <div class="params" id="params"></div>
+          <div class="guide-picker" id="guideControls" hidden><label>三角形辅助图形</label><div><button data-guide="rectangle">矩形</button><button data-guide="parallelogram">平行四边形</button><button data-guide="none">关闭</button></div></div>
+          <div class="legend" id="triangleLegend"><div><span class="legend-line base"></span>底边 b</div><div><span class="legend-line"></span>垂直高度 h</div></div>
+          <button class="delete-btn" id="deleteBtn">删除当前图形</button>
+        </div>
+      </div>
+      <div id="quizInspector" class="quiz-inspector" hidden>
+        <h2>提交答案</h2><p class="sub">结果保留两位小数即可</p>
+        <div class="quiz-tabs" id="quizTabs"><button class="active" data-kind="random">随机题目</button><button data-kind="single">单独图形</button><button data-kind="combine">组合图形</button><button data-kind="subtract">挖去图形</button></div>
+        <div class="quiz-answer-card">
+          <label for="quizAnswer">图形面积是多少？</label>
+          <div class="answer-wrap"><input id="quizAnswer" type="number" step="0.01" inputmode="decimal" placeholder="输入答案"><span>平方单位</span></div>
+          <button id="submitAnswer">判断答案</button>
+        </div>
+        <div id="quizFeedback" class="quiz-feedback" hidden></div>
+        <div id="quizExplanation" class="quiz-explanation" hidden><b>解题讲解</b><ol id="explanationSteps"></ol></div>
+        <button id="nextQuestion">下一题 →</button>
+        <div class="pi-note">本练习中圆周率统一取 π = 3.14</div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    (() => {
+      const svg = document.getElementById('canvas');
+      const workspace = document.getElementById('workspace');
+      const NS = 'http://www.w3.org/2000/svg';
+      const GRID = 40, PI = 3.14;
+      const colors = {
+        triangle: { fill: '#ff856f', stroke: '#d76753' },
+        rectangle: { fill: '#5297e8', stroke: '#317bcf' },
+        square: { fill: '#f4c95d', stroke: '#d19c22' },
+        parallelogram: { fill: '#45b8ad', stroke: '#258f86' },
+        circle: { fill: '#69c58f', stroke: '#359e63' },
+        polygon: { fill: '#9775d6', stroke: '#704db4' }
+      };
+      const names = { triangle:'三角形', rectangle:'矩形', square:'正方形', parallelogram:'平行四边形', circle:'圆形', polygon:'多边形' };
+      let shapes = [], selectedId = null, nextId = 1, zoom = 1, integerSnap = true;
+      let interaction = null, drawing = null, history = [], historyIndex = -1;
+      const activeTouches = new Map();
+      let pinch = null, practiceMode = false;
+
+      const createEl = (tag, attrs={}) => {
+        const el = document.createElementNS(NS, tag);
+        Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k, v));
+        return el;
+      };
+      const snap = v => Math.round(v / GRID) * GRID;
+      const snapMaybe = v => integerSnap ? snap(v) : Math.round(v / (GRID / 10)) * (GRID / 10);
+      const units = px => Math.abs(px / GRID);
+      const fmt = n => Number(n.toFixed(2)).toString();
+      const deepCopy = v => JSON.parse(JSON.stringify(v));
+      const current = () => shapes.find(s => s.id === selectedId);
+
+      function bounds(s) {
+        if (s.type === 'circle') return { x:s.cx-s.r, y:s.cy-s.r, w:s.r*2, h:s.r*2 };
+        const xs=s.points.map(p=>p.x), ys=s.points.map(p=>p.y);
+        const x=Math.min(...xs), y=Math.min(...ys);
+        return { x, y, w:Math.max(...xs)-x, h:Math.max(...ys)-y };
+      }
+
+      function polygonArea(points) {
+        let sum=0;
+        for(let i=0;i<points.length;i++) {
+          const a=points[i], b=points[(i+1)%points.length]; sum += a.x*b.y-b.x*a.y;
+        }
+        return Math.abs(sum)/2/(GRID*GRID);
+      }
+
+      const cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+      function pointInTriangle(p,a,b,c){
+        const c1=cross(a,b,p),c2=cross(b,c,p),c3=cross(c,a,p);
+        return (c1>=-0.001&&c2>=-0.001&&c3>=-0.001)||(c1<=0.001&&c2<=0.001&&c3<=0.001);
+      }
+      function triangulate(points){
+        if(points.length<3)return[];
+        const indices=points.map((_,i)=>i), triangles=[];
+        let signed=0;for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];signed+=a.x*b.y-b.x*a.y;}
+        const orientation=Math.sign(signed)||1;let guard=0;
+        while(indices.length>3&&guard++<points.length*points.length){
+          let clipped=false;
+          for(let j=0;j<indices.length;j++){
+            const prev=indices[(j-1+indices.length)%indices.length],cur=indices[j],next=indices[(j+1)%indices.length];
+            if(cross(points[prev],points[cur],points[next])*orientation<=0)continue;
+            const contains=indices.some(k=>k!==prev&&k!==cur&&k!==next&&pointInTriangle(points[k],points[prev],points[cur],points[next]));
+            if(contains)continue;
+            triangles.push([prev,cur,next]);indices.splice(j,1);clipped=true;break;
+          }
+          if(!clipped)break;
+        }
+        if(indices.length===3)triangles.push([...indices]);
+        if(triangles.length!==points.length-2)return points.slice(1,-1).map((_,i)=>[0,i+1,i+2]);
+        return triangles;
+      }
+      function triangleDetail(points,baseIndex=0){
+        const a=points[baseIndex],b=points[(baseIndex+1)%3],p=points[(baseIndex+2)%3];
+        const dx=b.x-a.x,dy=b.y-a.y,den=dx*dx+dy*dy,len=Math.sqrt(den)||1;
+        const t=den?((p.x-a.x)*dx+(p.y-a.y)*dy)/den:0,foot={x:a.x+t*dx,y:a.y+t*dy};
+        return {a,b,p,foot,t,base:len/GRID,height:Math.hypot(p.x-foot.x,p.y-foot.y)/GRID,dx,dy,len};
+      }
+
+      function parallelogramDetail(s){
+        const i=s.baseIndex||0,a=s.points[i],b=s.points[(i+1)%4],p=s.points[(i+3)%4];
+        const dx=b.x-a.x,dy=b.y-a.y,den=dx*dx+dy*dy,len=Math.sqrt(den)||1;
+        const t=den?((p.x-a.x)*dx+(p.y-a.y)*dy)/den:0,foot={x:a.x+t*dx,y:a.y+t*dy};
+        return {a,b,p,foot,t,base:len/GRID,height:Math.hypot(p.x-foot.x,p.y-foot.y)/GRID,dx,dy,len};
+      }
+
+      function makeShape(type, cx, cy) {
+        const id=nextId++;
+        if(type==='circle') return { id,type,cx:snapMaybe(cx),cy:snapMaybe(cy),r:GRID*2 };
+        let pts;
+        if(type==='triangle') pts=[{x:snap(cx)-GRID*3,y:snap(cy)+GRID*2},{x:snap(cx)+GRID*3,y:snap(cy)+GRID*2},{x:snap(cx),y:snap(cy)-GRID*2}];
+        if(type==='rectangle') pts=[{x:snap(cx)-GRID*3,y:snap(cy)-GRID*2},{x:snap(cx)+GRID*3,y:snap(cy)-GRID*2},{x:snap(cx)+GRID*3,y:snap(cy)+GRID*2},{x:snap(cx)-GRID*3,y:snap(cy)+GRID*2}];
+        if(type==='square') pts=[{x:snap(cx)-GRID*2,y:snap(cy)-GRID*2},{x:snap(cx)+GRID*2,y:snap(cy)-GRID*2},{x:snap(cx)+GRID*2,y:snap(cy)+GRID*2},{x:snap(cx)-GRID*2,y:snap(cy)+GRID*2}];
+        if(type==='parallelogram') pts=[{x:snap(cx)-GRID*3,y:snap(cy)+GRID*2},{x:snap(cx)+GRID*2,y:snap(cy)+GRID*2},{x:snap(cx)+GRID*3,y:snap(cy)-GRID*2},{x:snap(cx)-GRID*2,y:snap(cy)-GRID*2}];
+        const shape={id,type,points:pts};
+        if(type==='triangle'){shape.baseIndex=0;shape.guide='rectangle';}
+        if(type==='parallelogram')shape.baseIndex=0;
+        return shape;
+      }
+
+      function saveHistory() {
+        const state=JSON.stringify({shapes,selectedId,nextId});
+        if(history[historyIndex]===state) return;
+        history=history.slice(0,historyIndex+1); history.push(state); historyIndex++;
+        if(history.length>60){history.shift();historyIndex--;}
+        syncHistoryButtons();
+      }
+      function loadHistory(index){
+        if(index<0||index>=history.length)return;
+        historyIndex=index; const state=JSON.parse(history[index]);
+        shapes=state.shapes;selectedId=state.selectedId;nextId=state.nextId; render();syncHistoryButtons();
+      }
+      function syncHistoryButtons(){
+        document.getElementById('undoBtn').style.opacity=historyIndex>0?'1':'.35';
+        document.getElementById('redoBtn').style.opacity=historyIndex<history.length-1?'1':'.35';
+      }
+
+      function addShape(type) {
+        if(type==='polygon'){ startPolygon(); return; }
+        const rect=workspace.getBoundingClientRect();
+        const offset=shapes.length%4*18;
+        const s=makeShape(type,(rect.width/2-offset)/zoom,(rect.height/2+offset)/zoom);
+        shapes.push(s); selectedId=s.id; saveHistory(); render();
+      }
+
+      function startPolygon(){
+        drawing={points:[],hover:null};selectedId=null;
+        document.getElementById('drawToast').classList.add('visible'); render();
+      }
+      function finishPolygon(){
+        if(!drawing||drawing.points.length<3)return;
+        const s={id:nextId++,type:'polygon',points:drawing.points,activeTri:0}; shapes.push(s);selectedId=s.id;drawing=null;
+        document.getElementById('drawToast').classList.remove('visible');saveHistory();render();
+      }
+      function cancelPolygon(){drawing=null;document.getElementById('drawToast').classList.remove('visible');render();}
+
+      function drawGrid(root,w,h){
+        const defs=createEl('defs');
+        const minor=createEl('pattern',{id:'minorGrid',width:GRID*zoom,height:GRID*zoom,patternUnits:'userSpaceOnUse'});
+        minor.appendChild(createEl('path',{d:`M ${GRID*zoom} 0 L 0 0 0 ${GRID*zoom}`,fill:'none',stroke:'#dce3e1','stroke-width':'.8'}));
+        defs.appendChild(minor);
+        const major=createEl('pattern',{id:'majorGrid',width:GRID*5*zoom,height:GRID*5*zoom,patternUnits:'userSpaceOnUse'});
+        major.appendChild(createEl('rect',{width:GRID*5*zoom,height:GRID*5*zoom,fill:'url(#minorGrid)'}));
+        major.appendChild(createEl('path',{d:`M ${GRID*5*zoom} 0 L 0 0 0 ${GRID*5*zoom}`,fill:'none',stroke:'#cbd5d3','stroke-width':'1.1'}));
+        defs.appendChild(major);root.appendChild(defs);
+        root.appendChild(createEl('rect',{width:w,height:h,fill:'url(#majorGrid)'}));
+      }
+
+      function renderShape(root,s){
+        const c=colors[s.type], g=createEl('g',{'data-id':s.id});
+        let body;
+        if(s.type==='circle') body=createEl('circle',{cx:s.cx,cy:s.cy,r:s.r});
+        else body=createEl('polygon',{points:s.points.map(p=>`${p.x},${p.y}`).join(' ')});
+        body.setAttribute('fill',c.fill);body.setAttribute('fill-opacity','.64');body.setAttribute('stroke',c.stroke);body.setAttribute('stroke-width','2');body.setAttribute('class','shape-body shape-outline');body.dataset.id=s.id;
+        g.appendChild(body);
+
+        if(s.type==='polygon'&&s.id===selectedId) drawPolygonTriangulation(g,s);
+        const area=shapeArea(s), b=bounds(s), badge=createEl('g',{class:'area-badge','pointer-events':'none'});
+        const tx=b.x+b.w/2, ty=b.y+b.h/2;
+        if(s.id===selectedId) {
+          drawFormulaBadge(g,s,b);
+          if(s.type==='triangle')drawTriangleMeasures(g,s);
+          if(s.type==='parallelogram')drawParallelogramMeasures(g,s);
+          if(s.type!=='circle'&&s.type!=='triangle'&&s.type!=='parallelogram') drawEdgeMeasures(g,s);
+          drawSelection(g,s);
+        } else {
+          badge.appendChild(createEl('rect',{x:tx-34,y:ty-14,width:68,height:28,rx:14,fill:'#fff','fill-opacity':'.9'}));
+          const label=createEl('text',{x:tx,y:ty+4,'text-anchor':'middle',fill:c.stroke});label.textContent=`${fmt(area)} u²`;badge.appendChild(label);g.appendChild(badge);
+        }
+        root.appendChild(g);
+      }
+
+      function shortFormula(type) {
+        return {triangle:'A = ½bh',rectangle:'A = wh',square:'A = a²',parallelogram:'A = bh',circle:'A = 3.14r²',polygon:'A = ΣAᵢ'}[type];
+      }
+
+      function drawFormulaBadge(g,s,b){
+        const c=colors[s.type], tx=b.x+b.w/2, ty=s.type==='polygon'?b.y+34:b.y+b.h/2;
+        const wide=s.type==='polygon', width=wide?174:116;
+        const badge=createEl('g',{class:'formula-badge','pointer-events':'none'});
+        badge.appendChild(createEl('rect',{x:tx-width/2,y:ty-25,width,height:50,rx:13,fill:'#fff','fill-opacity':'.94',stroke:c.stroke,'stroke-opacity':'.2'}));
+        const f=createEl('text',{x:tx,y:ty-5,'text-anchor':'middle',fill:'#27343d','font-family':'Georgia, serif','font-size':wide?'12':'15','font-weight':'700'});f.textContent=shortFormula(s.type);badge.appendChild(f);
+        const v=createEl('text',{x:tx,y:ty+15,'text-anchor':'middle',fill:c.stroke,'font-family':'Georgia, serif','font-size':'13','font-weight':'700'});v.textContent=`= ${fmt(shapeArea(s))} u²`;badge.appendChild(v);g.appendChild(badge);
+      }
+
+      function drawEdgeMeasures(g,s){
+        const c=colors[s.type], b=bounds(s), cx=b.x+b.w/2, cy=b.y+b.h/2;
+        s.points.forEach((p,i)=>{
+          if(s.type==='triangle'&&i===(s.baseIndex||0))return;
+          const q=s.points[(i+1)%s.points.length], mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
+          let ox=mx-cx,oy=my-cy,len=Math.hypot(ox,oy)||1;ox=ox/len*14;oy=oy/len*14;
+          const label=createEl('text',{x:mx+ox,y:my+oy+4,'text-anchor':'middle',fill:c.stroke,class:'measure-label','pointer-events':'none'});
+          label.textContent=`${fmt(Math.hypot(q.x-p.x,q.y-p.y)/GRID)} u`;g.appendChild(label);
+        });
+      }
+
+      function drawTriangleMeasures(g,s){
+        const d=triangleDetail(s.points,s.baseIndex||0);
+        const sign=Math.sign(cross(d.a,d.b,d.p))||1,nx=-d.dy/d.len*sign,ny=d.dx/d.len*sign,h=d.height*GRID;
+        const guideMode=s.guide||'rectangle';
+        if(guideMode==='rectangle'){
+          const ra={x:d.a.x+nx*h,y:d.a.y+ny*h},rb={x:d.b.x+nx*h,y:d.b.y+ny*h};
+          const guide=createEl('polygon',{points:`${d.a.x},${d.a.y} ${d.b.x},${d.b.y} ${rb.x},${rb.y} ${ra.x},${ra.y}`,fill:'#5297e8','fill-opacity':'.06',stroke:'#5297e8','stroke-width':'1.5','stroke-dasharray':'7 6','pointer-events':'none'});g.insertBefore(guide,g.querySelector('.formula-badge'));
+        }else if(guideMode==='parallelogram'){
+          const q={x:d.b.x+d.p.x-d.a.x,y:d.b.y+d.p.y-d.a.y};
+          const guide=createEl('polygon',{points:`${d.a.x},${d.a.y} ${d.b.x},${d.b.y} ${q.x},${q.y} ${d.p.x},${d.p.y}`,fill:'#45b8ad','fill-opacity':'.08',stroke:'#258f86','stroke-width':'1.5','stroke-dasharray':'7 6','pointer-events':'none'});g.insertBefore(guide,g.querySelector('.formula-badge'));
+          const diagonal=createEl('line',{x1:d.b.x,y1:d.b.y,x2:d.p.x,y2:d.p.y,stroke:'#258f86','stroke-width':'1.2','stroke-dasharray':'5 5','pointer-events':'none'});
+          g.insertBefore(diagonal,g.querySelector('.formula-badge'));
+        }
+        const lineStart={x:d.a.x+Math.min(0,d.t)*d.dx,y:d.a.y+Math.min(0,d.t)*d.dy};
+        const lineEnd={x:d.a.x+Math.max(1,d.t)*d.dx,y:d.a.y+Math.max(1,d.t)*d.dy};
+        const base=createEl('line',{x1:lineStart.x,y1:lineStart.y,x2:lineEnd.x,y2:lineEnd.y,stroke:'#e85f4d','stroke-width':'3.5','stroke-dasharray':'8 5','pointer-events':'none'});
+        const high=createEl('line',{x1:d.p.x,y1:d.p.y,x2:d.foot.x,y2:d.foot.y,stroke:'#317fd5','stroke-width':'2.5','stroke-dasharray':'7 5','pointer-events':'none'});
+        const formulaNode=g.querySelector('.formula-badge');g.insertBefore(base,formulaNode);g.insertBefore(high,formulaNode);
+        const bl=createEl('text',{x:(d.a.x+d.b.x)/2-nx*15,y:(d.a.y+d.b.y)/2-ny*15+4,'text-anchor':'middle',fill:'#d65343',class:'measure-label','pointer-events':'none'});bl.textContent=`b = ${fmt(d.base)}`;g.appendChild(bl);
+        const hl=createEl('text',{x:(d.p.x+d.foot.x)/2+d.dx/d.len*45,y:(d.p.y+d.foot.y)/2+d.dy/d.len*45,fill:'#317fd5',class:'measure-label','pointer-events':'none'});hl.textContent=`h = ${fmt(d.height)}`;g.appendChild(hl);
+      }
+
+      function drawParallelogramMeasures(g,s){
+        const d=parallelogramDetail(s),sign=Math.sign(cross(d.a,d.b,d.p))||1,nx=-d.dy/d.len*sign,ny=d.dx/d.len*sign,h=d.height*GRID;
+        const ra={x:d.a.x+nx*h,y:d.a.y+ny*h},rb={x:d.b.x+nx*h,y:d.b.y+ny*h};
+        const guide=createEl('polygon',{points:`${d.a.x},${d.a.y} ${d.b.x},${d.b.y} ${rb.x},${rb.y} ${ra.x},${ra.y}`,fill:'#5297e8','fill-opacity':'.07',stroke:'#438bd4','stroke-width':'1.7','stroke-dasharray':'7 6','pointer-events':'none'});g.insertBefore(guide,g.querySelector('.formula-badge'));
+        const lineStart={x:d.a.x+Math.min(0,d.t)*d.dx,y:d.a.y+Math.min(0,d.t)*d.dy},lineEnd={x:d.a.x+Math.max(1,d.t)*d.dx,y:d.a.y+Math.max(1,d.t)*d.dy};
+        const formulaNode=g.querySelector('.formula-badge');
+        const baseLine=createEl('line',{x1:lineStart.x,y1:lineStart.y,x2:lineEnd.x,y2:lineEnd.y,stroke:'#e85f4d','stroke-width':'3.5','stroke-dasharray':'8 5','pointer-events':'none'});
+        const highLine=createEl('line',{x1:d.p.x,y1:d.p.y,x2:d.foot.x,y2:d.foot.y,stroke:'#317fd5','stroke-width':'2.5','stroke-dasharray':'7 5','pointer-events':'none'});
+        g.insertBefore(baseLine,formulaNode);g.insertBefore(highLine,formulaNode);
+        const bl=createEl('text',{x:(d.a.x+d.b.x)/2-nx*15,y:(d.a.y+d.b.y)/2-ny*15+4,'text-anchor':'middle',fill:'#d65343',class:'measure-label','pointer-events':'none'});bl.textContent=`b = ${fmt(d.base)}`;g.appendChild(bl);
+        const hl=createEl('text',{x:(d.p.x+d.foot.x)/2+d.dx/d.len*25,y:(d.p.y+d.foot.y)/2+d.dy/d.len*25,fill:'#317fd5',class:'measure-label','pointer-events':'none'});hl.textContent=`h = ${fmt(d.height)}`;g.appendChild(hl);
+      }
+
+      function drawPolygonTriangulation(g,s){
+        const triangles=triangulate(s.points), palette=['#ff9f67','#55b9aa','#ef72a9','#e0b94f','#5f91e8','#a27bd9'];
+        if(!triangles.length)return;
+        s.activeTri=Math.min(s.activeTri||0,triangles.length-1);
+        triangles.forEach((ids,i)=>{
+          const pts=ids.map(id=>s.points[id]),active=i===s.activeTri;
+          const region=createEl('polygon',{points:pts.map(p=>`${p.x},${p.y}`).join(' '),fill:palette[i%palette.length],'fill-opacity':active?'.48':'.16',stroke:active?'#5d3b91':'#ffffff','stroke-width':active?'2.5':'1.5',class:'tri-region','data-id':s.id,'data-tri-index':i});
+          g.appendChild(region);
+          const center={x:(pts[0].x+pts[1].x+pts[2].x)/3,y:(pts[0].y+pts[1].y+pts[2].y)/3};
+          const dot=createEl('circle',{cx:center.x,cy:center.y,r:active?8:6,fill:active?'#ff5e57':palette[i%palette.length],stroke:'#fff','stroke-width':'2','data-id':s.id,'data-tri-index':i,class:'tri-region'});g.appendChild(dot);
+          const number=createEl('text',{x:center.x,y:center.y+4,'text-anchor':'middle',fill:'#fff','font-size':'10','font-weight':'800','pointer-events':'none'});number.textContent=i+1;g.appendChild(number);
+        });
+        const ids=triangles[s.activeTri],pts=ids.map(id=>s.points[id]),d=triangleDetail(pts,1);
+        const base=createEl('line',{x1:d.a.x,y1:d.a.y,x2:d.b.x,y2:d.b.y,stroke:'#ff5e57','stroke-width':'3','stroke-dasharray':'8 5','pointer-events':'none'});
+        const high=createEl('line',{x1:d.p.x,y1:d.p.y,x2:d.foot.x,y2:d.foot.y,stroke:'#15a594','stroke-width':'2.5','stroke-dasharray':'7 5','pointer-events':'none'});
+        g.appendChild(base);g.appendChild(high);
+        const bl=createEl('text',{x:(d.a.x+d.b.x)/2,y:(d.a.y+d.b.y)/2+16,'text-anchor':'middle',fill:'#e34d49',class:'measure-label','pointer-events':'none'});bl.textContent=`b${s.activeTri+1} = ${fmt(d.base)}`;g.appendChild(bl);
+        const hl=createEl('text',{x:(d.p.x+d.foot.x)/2+13,y:(d.p.y+d.foot.y)/2,fill:'#138b7e',class:'measure-label','pointer-events':'none'});hl.textContent=`h${s.activeTri+1} = ${fmt(d.height)}`;g.appendChild(hl);
+      }
+
+      function drawSelection(g,s){
+        const b=bounds(s), pad=8;
+        g.appendChild(createEl('rect',{x:b.x-pad,y:b.y-pad,width:b.w+pad*2,height:b.h+pad*2,rx:4,class:'selection-box'}));
+        if(s.type==='circle'){
+          const h=createEl('circle',{cx:s.cx+s.r,cy:s.cy,r:matchMedia('(pointer: coarse)').matches?9:6,class:'handle','data-handle':'radius','data-id':s.id});g.appendChild(h);
+          const radius=createEl('line',{x1:s.cx,y1:s.cy,x2:s.cx+s.r,y2:s.cy,stroke:'#32885a','stroke-width':'2','stroke-dasharray':'5 4','pointer-events':'none'});g.appendChild(radius);
+          const l=createEl('text',{x:s.cx+s.r/2,y:s.cy-9,'text-anchor':'middle',fill:'#28764d',class:'measure-label','pointer-events':'none'});l.textContent=`r = ${fmt(s.r/GRID)}`;g.appendChild(l);
+        } else {
+          if(s.type==='triangle'||s.type==='parallelogram')s.points.forEach((p,i)=>{
+            const q=s.points[(i+1)%s.points.length],target=createEl('line',{x1:p.x,y1:p.y,x2:q.x,y2:q.y,stroke:'transparent','stroke-width':'18',class:'base-target','data-id':s.id,'data-base-index':i});
+            g.appendChild(target);
+          });
+          s.points.forEach((p,i)=>{
+            const h=createEl('circle',{cx:p.x,cy:p.y,r:matchMedia('(pointer: coarse)').matches?9:6,class:'vertex','data-handle':'vertex','data-index':i,'data-id':s.id,stroke:colors[s.type].stroke});g.appendChild(h);
+          });
+        }
+      }
+
+      function renderDrawing(root){
+        if(!drawing)return;
+        const pts=drawing.points;
+        if(pts.length){
+          const all=drawing.hover?[...pts,drawing.hover]:pts;
+          root.appendChild(createEl('polyline',{points:all.map(p=>`${p.x},${p.y}`).join(' '),fill:'rgba(151,117,214,.13)',stroke:'#7652bb','stroke-width':'2','stroke-dasharray':'6 4'}));
+          pts.forEach((p,i)=>{const c=createEl('circle',{cx:p.x,cy:p.y,r:6,fill:'#fff',stroke:'#7652bb','stroke-width':'2'});root.appendChild(c); const n=createEl('text',{x:p.x+9,y:p.y-9,fill:'#7652bb',class:'measure-label'});n.textContent=i+1;root.appendChild(n);});
+        }
+      }
+
+      function render(){
+        const r=workspace.getBoundingClientRect(), w=r.width,h=r.height;svg.innerHTML='';drawGrid(svg,w,h);
+        const world=createEl('g',{transform:`scale(${zoom})`}); shapes.forEach(s=>renderShape(world,s));renderDrawing(world);svg.appendChild(world);updateInspector();
+      }
+
+      function triangleMetrics(s){
+        const d=triangleDetail(s.points,s.baseIndex||0);return{base:d.base,height:d.height};
+      }
+      function parallelogramMetrics(s){
+        const d=parallelogramDetail(s);return{base:d.base,height:d.height};
+      }
+      function shapeArea(s){
+        if(s.type==='circle')return PI*(s.r/GRID)**2;
+        return polygonArea(s.points);
+      }
+      function dimensions(s){
+        const b=bounds(s);
+        if(s.type==='triangle'){const m=triangleMetrics(s);return [{key:'base',label:'底边 b',hint:'三角形底边',value:m.base},{key:'height',label:'高度 h',hint:'垂直于底边',value:m.height}];}
+        if(s.type==='rectangle')return[{key:'width',label:'长度 w',hint:'水平方向',value:units(b.w)},{key:'height',label:'宽度 h',hint:'垂直方向',value:units(b.h)}];
+        if(s.type==='parallelogram'){const m=parallelogramMetrics(s);return[{key:'base',label:'底边 b',hint:'点击任意边切换',value:m.base},{key:'height',label:'高度 h',hint:'两条平行边的距离',value:m.height}];}
+        if(s.type==='square')return[{key:'side',label:'边长 a',hint:'四边长度相等',value:units(b.w)}];
+        if(s.type==='circle')return[{key:'radius',label:'半径 r',hint:'圆心到圆周',value:units(s.r)}];
+        return [{key:'vertices',label:'顶点数量 n',hint:'拖动顶点可调整',value:s.points.length,readonly:true}];
+      }
+      function formulaInfo(s){
+        const a=shapeArea(s), d=dimensions(s);
+        if(s.type==='triangle')return['A = ½ × b × h',`½ × ${fmt(d[0].value)} × ${fmt(d[1].value)} = ${fmt(a)}`];
+        if(s.type==='rectangle')return['A = w × h',`${fmt(d[0].value)} × ${fmt(d[1].value)} = ${fmt(a)}`];
+        if(s.type==='parallelogram')return['A = b × h',`${fmt(d[0].value)} × ${fmt(d[1].value)} = ${fmt(a)}`];
+        if(s.type==='square')return['A = a²',`${fmt(d[0].value)}² = ${fmt(a)}`];
+        if(s.type==='circle')return['A = 3.14 × r²',`3.14 × ${fmt(d[0].value)}² = ${fmt(a)}`];
+        const tris=triangulate(s.points),areas=tris.map(ids=>polygonArea(ids.map(i=>s.points[i])));
+        return [`A = ${areas.map((_,i)=>'A'+(i+1)).join(' + ')}`,areas.map((v,i)=>`A${i+1}=½×b${i+1}×h${i+1}=${fmt(v)}`).join('；')+`；总面积 = ${fmt(areas.reduce((sum,v)=>sum+v,0))}`];
+      }
+
+      function updateInspector(){
+        if(practiceMode)return;
+        const s=current(), empty=document.getElementById('emptyState'), content=document.getElementById('inspectorContent');
+        if(!s){empty.hidden=false;content.hidden=true;return;} empty.hidden=true;content.hidden=false;
+        document.getElementById('selectedName').textContent=names[s.type];
+        document.getElementById('selectedMeta').textContent=(s.type==='triangle'||s.type==='parallelogram')?`图形 #${s.id} · 点击任意边切换底边`:s.type==='polygon'?`图形 #${s.id} · 点击彩色分区查看`:`图形 #${s.id} · 已选中`;
+        document.getElementById('colorDot').style.background=colors[s.type].fill;
+        document.getElementById('colorDot').style.boxShadow=`0 0 0 5px ${colors[s.type].fill}25`;
+        document.getElementById('areaValue').textContent=fmt(shapeArea(s));
+        const f=formulaInfo(s);document.getElementById('formula').textContent=f[0];document.getElementById('calculation').textContent=f[1];
+        document.getElementById('triangleLegend').style.display=(s.type==='triangle'||s.type==='parallelogram'||s.type==='polygon')?'grid':'none';
+        const guideControls=document.getElementById('guideControls');guideControls.hidden=s.type!=='triangle';
+        if(s.type==='triangle')guideControls.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.guide===(s.guide||'rectangle')));
+        const params=document.getElementById('params');params.innerHTML='';
+        dimensions(s).forEach(d=>{
+          const row=document.createElement('div');row.className='param-row';
+          row.innerHTML=`<label>${d.label}<small>${d.hint}</small></label><div class="number-wrap"><input type="number" min="${integerSnap?'1':'0.1'}" step="${integerSnap?'1':'0.1'}" value="${fmt(d.value)}" data-param="${d.key}" ${d.readonly?'readonly':''}><span>${d.key==='vertices'?'个':'u'}</span></div>`;
+          params.appendChild(row);
+        });
+      }
+
+      function setParam(s,key,val){
+        val=Math.max(integerSnap?1:.1,Number(val)||(integerSnap?1:.1));
+        if(integerSnap)val=Math.round(val);
+        const b=bounds(s),cx=b.x+b.w/2,cy=b.y+b.h/2;
+        if(s.type==='circle'&&key==='radius'){s.r=val*GRID;return;}
+        if(s.type==='square'&&key==='side'){const z=val*GRID/2;s.points=[{x:cx-z,y:cy-z},{x:cx+z,y:cy-z},{x:cx+z,y:cy+z},{x:cx-z,y:cy+z}];return;}
+        if(s.type==='rectangle'){
+          const w=(key==='width'?val:units(b.w))*GRID/2,h=(key==='height'?val:units(b.h))*GRID/2;
+          s.points=[{x:cx-w,y:cy-h},{x:cx+w,y:cy-h},{x:cx+w,y:cy+h},{x:cx-w,y:cy+h}];return;
+        }
+        if(s.type==='parallelogram'){
+          const bi=s.baseIndex||0,ai=bi,bj=(bi+1)%4,ki=(bi+2)%4,li=(bi+3)%4,a=s.points[ai],bb=s.points[bj],far=s.points[li];
+          const dx=bb.x-a.x,dy=bb.y-a.y,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,vx=far.x-a.x,vy=far.y-a.y;
+          if(key==='base'){
+            const mx=(a.x+bb.x)/2,my=(a.y+bb.y)/2,half=val*GRID/2,na={x:mx-ux*half,y:my-uy*half},nb={x:mx+ux*half,y:my+uy*half};
+            s.points[ai]=na;s.points[bj]=nb;s.points[li]={x:na.x+vx,y:na.y+vy};s.points[ki]={x:nb.x+vx,y:nb.y+vy};
+          }else{
+            const along=vx*ux+vy*uy,sign=Math.sign(dx*vy-dy*vx)||1,nx=-uy*sign,ny=ux*sign,nv={x:ux*along+nx*val*GRID,y:uy*along+ny*val*GRID};
+            s.points[li]={x:a.x+nv.x,y:a.y+nv.y};s.points[ki]={x:bb.x+nv.x,y:bb.y+nv.y};
+          }
+          return;
+        }
+        if(s.type==='triangle'){
+          const bi=s.baseIndex||0,ai=bi,bj=(bi+1)%3,pi=(bi+2)%3,a=s.points[ai],bb=s.points[bj],p=s.points[pi];
+          if(key==='base'){
+            const mx=(a.x+bb.x)/2,my=(a.y+bb.y)/2,angle=Math.atan2(bb.y-a.y,bb.x-a.x),half=val*GRID/2;
+            s.points[ai]={x:mx-Math.cos(angle)*half,y:my-Math.sin(angle)*half};s.points[bj]={x:mx+Math.cos(angle)*half,y:my+Math.sin(angle)*half};
+          }else{
+            const dx=bb.x-a.x,dy=bb.y-a.y,len=Math.hypot(dx,dy)||1, sign=Math.sign(dx*(p.y-a.y)-dy*(p.x-a.x))||-1;
+            const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/(len*len),foot={x:a.x+t*dx,y:a.y+t*dy};
+            s.points[pi]={x:foot.x-sign*dy/len*val*GRID,y:foot.y+sign*dx/len*val*GRID};
+          }
+        }
+      }
+
+      function canvasPoint(e){const r=svg.getBoundingClientRect();return{x:(e.clientX-r.left)/zoom,y:(e.clientY-r.top)/zoom};}
+      svg.addEventListener('pointerdown',e=>{
+        if(e.pointerType==='touch'){
+          activeTouches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+          if(activeTouches.size===2){
+            const [a,b]=[...activeTouches.values()];pinch={distance:Math.hypot(b.x-a.x,b.y-a.y),zoom};interaction=null;e.preventDefault();return;
+          }
+        }
+        const p=canvasPoint(e);
+        if(drawing){drawing.points.push({x:snapMaybe(p.x),y:snapMaybe(p.y)});render();return;}
+        const id=Number(e.target.dataset.id), handle=e.target.dataset.handle;
+        if(id&&e.target.dataset.baseIndex!==undefined){selectedId=id;current().baseIndex=Number(e.target.dataset.baseIndex);render();return;}
+        if(id&&e.target.dataset.triIndex!==undefined){
+          selectedId=id;const s=current();s.activeTri=Number(e.target.dataset.triIndex);
+          interaction={id,handle:null,start:p,original:deepCopy(s)};svg.setPointerCapture(e.pointerId);render();return;
+        }
+        if(id){selectedId=id; const s=current();interaction={id,handle,index:Number(e.target.dataset.index),start:p,original:deepCopy(s)};svg.setPointerCapture(e.pointerId);render();}
+        else{selectedId=null;render();}
+      });
+      svg.addEventListener('pointermove',e=>{
+        if(e.pointerType==='touch'&&activeTouches.has(e.pointerId)){
+          activeTouches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+          if(pinch&&activeTouches.size===2){
+            const [a,b]=[...activeTouches.values()], distance=Math.hypot(b.x-a.x,b.y-a.y);
+            setZoom(pinch.zoom*distance/pinch.distance);e.preventDefault();return;
+          }
+        }
+        const p=canvasPoint(e);
+        if(drawing){drawing.hover={x:snapMaybe(p.x),y:snapMaybe(p.y)};render();return;}
+        if(!interaction)return;const s=current();if(!s)return;
+        if(interaction.handle==='radius')s.r=Math.max(integerSnap?GRID:GRID*.1,snapMaybe(Math.hypot(p.x-s.cx,p.y-s.cy)));
+        else if(interaction.handle==='vertex'){
+          const np={x:snapMaybe(p.x),y:snapMaybe(p.y)};s.points[interaction.index]=np;
+          if(s.type==='square'){
+            const opp=interaction.original.points[(interaction.index+2)%4],dx=np.x-opp.x,dy=np.y-opp.y,size=Math.max(Math.abs(dx),Math.abs(dy)),sx=Math.sign(dx)||1,sy=Math.sign(dy)||1;
+            const corner={x:opp.x+sx*size,y:opp.y+sy*size};const i=interaction.index;s.points[i]=corner;s.points[(i+1)%4]={x:opp.x+sx*size,y:opp.y};s.points[(i+3)%4]={x:opp.x,y:opp.y+sy*size};s.points[(i+2)%4]=opp;
+          }
+          if(s.type==='rectangle'){
+            const opp=interaction.original.points[(interaction.index+2)%4],i=interaction.index;s.points[i]=np;s.points[(i+1)%4]={x:np.x,y:opp.y};s.points[(i+3)%4]={x:opp.x,y:np.y};s.points[(i+2)%4]=opp;
+          }
+          if(s.type==='parallelogram'){
+            const i=interaction.index,orig=interaction.original.points,opp=orig[(i+2)%4],prev=orig[(i+3)%4];
+            s.points[i]=np;s.points[(i+2)%4]=opp;s.points[(i+3)%4]=prev;s.points[(i+1)%4]={x:np.x+opp.x-prev.x,y:np.y+opp.y-prev.y};
+          }
+        } else {
+          let dx=p.x-interaction.start.x,dy=p.y-interaction.start.y;
+          if(integerSnap){
+            const anchor=interaction.original.type==='circle'?{x:interaction.original.cx,y:interaction.original.cy}:interaction.original.points[0];
+            dx=snap(anchor.x+dx)-anchor.x;dy=snap(anchor.y+dy)-anchor.y;
+          }
+          if(s.type==='circle'){s.cx=interaction.original.cx+dx;s.cy=interaction.original.cy+dy;}
+          else s.points=interaction.original.points.map(q=>({x:q.x+dx,y:q.y+dy}));
+        }render();
+      });
+      function endPointer(e){
+        if(e.pointerType==='touch'){activeTouches.delete(e.pointerId);if(activeTouches.size<2)pinch=null;}
+        if(interaction){interaction=null;saveHistory();render();try{svg.releasePointerCapture(e.pointerId)}catch{}}
+      }
+      svg.addEventListener('pointerup',endPointer);svg.addEventListener('pointercancel',endPointer);
+      svg.addEventListener('dblclick',e=>{if(drawing){e.preventDefault(); if(drawing.points.length>3)drawing.points.pop();finishPolygon();}});
+
+      document.getElementById('shapeList').addEventListener('click',e=>{
+        const btn=e.target.closest('.shape-btn');if(!btn)return;
+        document.querySelectorAll('.shape-btn').forEach(b=>b.classList.toggle('active',b===btn));addShape(btn.dataset.type);
+      });
+      document.getElementById('addDefaultBtn').onclick=()=>addShape(document.querySelector('.shape-btn.active').dataset.type);
+      document.getElementById('finishPolygon').onclick=finishPolygon;document.getElementById('cancelPolygon').onclick=cancelPolygon;
+      document.getElementById('deleteBtn').onclick=()=>{shapes=shapes.filter(s=>s.id!==selectedId);selectedId=null;saveHistory();render();};
+      document.getElementById('clearBtn').onclick=()=>{if(shapes.length&&confirm('确定要清空画布上的所有图形吗？')){shapes=[];selectedId=null;saveHistory();render();}};
+      document.getElementById('params').addEventListener('change',e=>{
+        if(!e.target.dataset.param||e.target.readOnly)return;
+        const s=current();setParam(s,e.target.dataset.param,e.target.value);
+        if(integerSnap){if(s.type==='circle'){s.cx=snap(s.cx);s.cy=snap(s.cy);s.r=Math.max(GRID,snap(s.r));}else{s.points=s.points.map(p=>({x:snap(p.x),y:snap(p.y)}));}}
+        saveHistory();render();
+      });
+      document.getElementById('guideControls').addEventListener('click',e=>{
+        const button=e.target.closest('button'),s=current();if(!button||!s||s.type!=='triangle')return;
+        s.guide=button.dataset.guide;saveHistory();render();
+      });
+      document.getElementById('undoBtn').onclick=()=>loadHistory(historyIndex-1);document.getElementById('redoBtn').onclick=()=>loadHistory(historyIndex+1);
+      function setZoom(v){zoom=Math.min(1.5,Math.max(.6,v));document.getElementById('zoomLabel').textContent=Math.round(zoom*100)+'%';render();}
+      document.getElementById('zoomIn').onclick=()=>setZoom(zoom+.1);document.getElementById('zoomOut').onclick=()=>setZoom(zoom-.1);document.getElementById('fitBtn').onclick=()=>setZoom(1);
+      document.getElementById('snapToggle').onclick=e=>{
+        integerSnap=!integerSnap;e.currentTarget.classList.toggle('active',integerSnap);e.currentTarget.innerHTML=integerSnap?'⊙ 整数点':'○ 自由点';
+        if(integerSnap){
+          shapes.forEach(s=>{if(s.type==='circle'){s.cx=snap(s.cx);s.cy=snap(s.cy);s.r=Math.max(GRID,snap(s.r));}else{s.points=s.points.map(p=>({x:snap(p.x),y:snap(p.y)}));}});saveHistory();
+        }render();
+      };
+      const quizSvgStyle='<style>.qshape{stroke:#263844;stroke-width:3}.qdim{stroke:#e16251;stroke-width:2;stroke-dasharray:7 5}.qhelp{stroke:#448cda;stroke-width:2;stroke-dasharray:6 5}.qlabel{font:700 17px Inter,sans-serif;fill:#293943;paint-order:stroke;stroke:#fff;stroke-width:5px;stroke-linejoin:round}.qsmall{font:700 14px Inter,sans-serif;fill:#687780;paint-order:stroke;stroke:#fff;stroke-width:4px}</style>';
+      const qround=n=>Math.round(n*100)/100;
+      const qrand=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+      const qdim=(x1,y1,x2,y2,label,tx,ty)=>'<line class="qdim" x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'"/><text class="qlabel" text-anchor="middle" x="'+tx+'" y="'+ty+'">'+label+'</text>';
+
+      function singleQuestion(){
+        const type=['triangle','rectangle','square','semicircle','quarter'][qrand(0,4)];
+        if(type==='triangle'){
+          const b=qrand(4,10),h=qrand(3,8),w=b*28,hp=h*27,answer=.5*b*h;
+          return {kind:'single',label:'单独图形 · 三角形',title:'求三角形的面积',prompt:'图中虚线为三角形的垂直高度。请在草稿板列式，再填写面积。',answer,svg:'<polygon class="qshape" fill="#ff9a87" points="'+(300-w/2)+',330 '+(300+w/2)+',330 300,'+(330-hp)+'"/>'+qdim(300-w/2,330,300+w/2,330,'b = '+b,300,356)+'<line class="qhelp" x1="300" y1="'+(330-hp)+'" x2="300" y2="330"/><text class="qlabel" x="315" y="'+(330-hp/2)+'">h = '+h+'</text>',steps:['三角形面积公式：A = ½ × b × h','代入：A = ½ × '+b+' × '+h,'得到：A = '+qround(answer)]};
+        }
+        if(type==='rectangle'){
+          const w=qrand(4,10),h=qrand(3,8),wp=w*28,hp=h*27,answer=w*h,x=300-wp/2,y=210-hp/2;
+          return {kind:'single',label:'单独图形 · 矩形',title:'求矩形的面积',prompt:'观察图中标出的长和宽，计算矩形面积。',answer,svg:'<rect class="qshape" fill="#78b3ee" x="'+x+'" y="'+y+'" width="'+wp+'" height="'+hp+'" rx="3"/>'+qdim(x,y+hp,x+wp,y+hp,'w = '+w,300,y+hp+27)+qdim(x+wp,y,x+wp,y+hp,'h = '+h,x+wp+34,215),steps:['矩形面积公式：A = w × h','代入：A = '+w+' × '+h,'得到：A = '+answer]};
+        }
+        if(type==='square'){
+          const a=qrand(3,8),side=a*32,answer=a*a,x=300-side/2,y=210-side/2;
+          return {kind:'single',label:'单独图形 · 正方形',title:'求正方形的面积',prompt:'正方形四条边相等，根据已知边长计算面积。',answer,svg:'<rect class="qshape" fill="#f4cf6c" x="'+x+'" y="'+y+'" width="'+side+'" height="'+side+'" rx="3"/>'+qdim(x,y+side,x+side,y+side,'a = '+a,300,y+side+28),steps:['正方形面积公式：A = a²','代入：A = '+a+'²','得到：A = '+answer]};
+        }
+        if(type==='semicircle'){
+          const r=qrand(2,6),R=r*30,answer=.5*PI*r*r,cx=300,cy=270;
+          return {kind:'single',label:'单独图形 · 半圆',title:'求半圆的面积',prompt:'圆周率取 3.14。图中红色虚线表示半径。',answer,svg:'<path class="qshape" fill="#74cea0" d="M '+(cx-R)+' '+cy+' A '+R+' '+R+' 0 0 1 '+(cx+R)+' '+cy+' Z"/>'+qdim(cx,cy,cx+R,cy,'r = '+r,cx+R/2,cy-13),steps:['半圆面积公式：A = ½ × 3.14 × r²','代入：A = ½ × 3.14 × '+r+'²','得到：A = '+qround(answer)]};
+        }
+        const r=qrand(2,6),R=r*35,answer=.25*PI*r*r,cx=230,cy=300;
+        return {kind:'single',label:'单独图形 · 1/4 圆',title:'求四分之一圆的面积',prompt:'圆周率取 3.14，两条直边均为半径。',answer,svg:'<path class="qshape" fill="#a98bdf" d="M '+cx+' '+cy+' L '+(cx+R)+' '+cy+' A '+R+' '+R+' 0 0 0 '+cx+' '+(cy-R)+' Z"/>'+qdim(cx,cy,cx+R,cy,'r = '+r,cx+R/2,cy+27),steps:['四分之一圆面积：A = ¼ × 3.14 × r²','代入：A = ¼ × 3.14 × '+r+'²','得到：A = '+qround(answer)]};
+      }
+
+      function combineQuestion(){
+        const combo=qrand(0,2);
+        if(combo===2){
+          const a=qrand(3,6),side=a*34,x=300-side,y=210-side/2,cx=300,cy=y,answer=a*a+.25*PI*a*a;
+          return {kind:'combine',label:'组合图形 · 正方形＋1/4 圆',title:'求正方形与四分之一圆的组合面积',prompt:'四分之一圆的半径与正方形边长相等，两部分只共用一条边。圆周率取 3.14。',answer,svg:'<rect class="qshape" fill="#f2ca62" x="'+x+'" y="'+y+'" width="'+side+'" height="'+side+'"/><path class="qshape" fill="#a78add" d="M '+cx+' '+cy+' L '+(cx+side)+' '+cy+' A '+side+' '+side+' 0 0 1 '+cx+' '+(cy+side)+' Z"/>'+qdim(x,y+side,cx,y+side,'a = '+a,(x+cx)/2,y+side+27)+'<line class="qdim" x1="'+cx+'" y1="'+cy+'" x2="'+(cx+side)+'" y2="'+cy+'"/><text class="qlabel" x="'+(cx+side/2)+'" y="'+(cy-13)+'">r = '+a+'</text>',steps:['正方形面积：'+a+'² = '+a*a,'1/4 圆面积：¼ × 3.14 × '+a+'² = '+qround(.25*PI*a*a),'组合面积：'+a*a+' + '+qround(.25*PI*a*a)+' = '+qround(answer)]};
+        }
+        if(combo===0){
+          const w=qrand(6,10),h=qrand(3,6),th=qrand(2,5),wp=w*30,hp=h*26,tp=th*27,x=300-wp/2,base=320-hp,answer=w*h+.5*w*th;
+          return {kind:'combine',label:'组合图形 · 矩形＋三角形',title:'求房屋形组合图形的面积',prompt:'图形由一个矩形和一个三角形组成，两部分只共用边、不重叠。',answer,svg:'<rect class="qshape" fill="#73afea" x="'+x+'" y="'+base+'" width="'+wp+'" height="'+hp+'"/><polygon class="qshape" fill="#ff987f" points="'+x+','+base+' '+(x+wp)+','+base+' 300,'+(base-tp)+'"/>'+qdim(x,320,x+wp,320,'宽 '+w,300,348)+qdim(x,base,x,320,'高 '+h,x-35,base+hp/2)+'<line class="qhelp" x1="300" y1="'+(base-tp)+'" x2="300" y2="'+base+'"/><text class="qlabel" x="315" y="'+(base-tp/2)+'">屋顶高 '+th+'</text>',steps:['矩形面积：'+w+' × '+h+' = '+w*h,'三角形面积：½ × '+w+' × '+th+' = '+.5*w*th,'组合面积：'+w*h+' + '+.5*w*th+' = '+answer]};
+        }
+        const r=qrand(2,5),w=2*r,h=qrand(3,7),R=r*30,wp=w*30,hp=h*25,x=300-R,base=320-hp,answer=w*h+.5*PI*r*r;
+        return {kind:'combine',label:'组合图形 · 矩形＋半圆',title:'求拱门形组合图形的面积',prompt:'上方半圆的直径等于矩形的宽。圆周率取 3.14。',answer,svg:'<rect class="qshape" fill="#75b3ec" x="'+x+'" y="'+base+'" width="'+wp+'" height="'+hp+'"/><path class="qshape" fill="#73c99b" d="M '+x+' '+base+' A '+R+' '+R+' 0 0 1 '+(x+wp)+' '+base+' Z"/>'+qdim(x,320,x+wp,320,'直径 '+w,300,348)+qdim(x,base,x,320,'高 '+h,x-34,base+hp/2)+'<line class="qdim" x1="300" y1="'+base+'" x2="'+(300+R)+'" y2="'+base+'"/><text class="qlabel" x="'+(300+R/2)+'" y="'+(base-12)+'">r = '+r+'</text>',steps:['矩形面积：'+w+' × '+h+' = '+w*h,'半圆面积：½ × 3.14 × '+r+'² = '+qround(.5*PI*r*r),'组合面积：'+w*h+' + '+qround(.5*PI*r*r)+' = '+qround(answer)]};
+      }
+
+      function subtractQuestion(){
+        if(Math.random()<.5){
+          const w=qrand(9,13),h=qrand(6,9),r=qrand(2,Math.min(4,Math.floor(w/3))),wp=w*28,hp=h*27,R=r*28,x=300-wp/2,y=210-hp/2,answer=w*h-.5*PI*r*r;
+          return {kind:'subtract',label:'挖去图形 · 矩形－半圆',title:'求挖去半圆后的剩余面积',prompt:'从大矩形上方挖去一个半圆，白色部分不计入面积。圆周率取 3.14。',answer,svg:'<rect class="qshape" fill="#8aaee8" x="'+x+'" y="'+y+'" width="'+wp+'" height="'+hp+'"/><path fill="#fafbf8" stroke="#e26055" stroke-width="3" stroke-dasharray="7 5" d="M '+(300-R)+' '+y+' A '+R+' '+R+' 0 0 0 '+(300+R)+' '+y+' Z"/>'+qdim(x,y+hp,x+wp,y+hp,'长 '+w,300,y+hp+28)+qdim(x,y,x,y+hp,'宽 '+h,x-35,215)+'<text class="qlabel" x="300" y="'+(y+35)+'">挖去：r = '+r+'</text>',steps:['大矩形面积：'+w+' × '+h+' = '+w*h,'挖去的半圆：½ × 3.14 × '+r+'² = '+qround(.5*PI*r*r),'剩余面积：'+w*h+' − '+qround(.5*PI*r*r)+' = '+qround(answer)]};
+        }
+        const a=qrand(7,11),r=qrand(2,Math.min(5,a-2)),side=a*29,R=r*29,x=300-side/2,y=210-side/2,cx=x+side,cy=y+side,answer=a*a-.25*PI*r*r;
+        return {kind:'subtract',label:'挖去图形 · 正方形－1/4 圆',title:'求挖去四分之一圆后的面积',prompt:'从正方形右下角挖去一个四分之一圆，白色部分不计入面积。',answer,svg:'<rect class="qshape" fill="#e4be59" x="'+x+'" y="'+y+'" width="'+side+'" height="'+side+'"/><path fill="#fafbf8" stroke="#e26055" stroke-width="3" stroke-dasharray="7 5" d="M '+cx+' '+cy+' L '+(cx-R)+' '+cy+' A '+R+' '+R+' 0 0 1 '+cx+' '+(cy-R)+' Z"/>'+qdim(x,cy,x+side,cy,'边长 '+a,300,cy+28)+'<text class="qlabel" x="'+(cx-R/2)+'" y="'+(cy-R/2)+'">挖去 r = '+r+'</text>',steps:['正方形面积：'+a+'² = '+a*a,'挖去的 1/4 圆：¼ × 3.14 × '+r+'² = '+qround(.25*PI*r*r),'剩余面积：'+a*a+' − '+qround(.25*PI*r*r)+' = '+qround(answer)]};
+      }
+
+      let quizKind='random',quizQuestion=null,quizScore=0,quizTotal=0,questionCounted=false,questionSolved=false;
+      function nextQuizQuestion(){
+        const kind=quizKind==='random'?['single','combine','subtract'][qrand(0,2)]:quizKind;
+        quizQuestion=kind==='single'?singleQuestion():kind==='combine'?combineQuestion():subtractQuestion();
+        document.getElementById('problemType').textContent=quizQuestion.label;
+        document.getElementById('problemTitle').textContent=quizQuestion.title;
+        document.getElementById('problemPrompt').textContent=quizQuestion.prompt;
+        document.getElementById('problemSvg').innerHTML=quizSvgStyle+quizQuestion.svg;
+        document.getElementById('quizAnswer').value='';
+        document.getElementById('quizAnswer').disabled=false;
+        document.getElementById('submitAnswer').disabled=false;
+        document.getElementById('submitAnswer').textContent='判断答案';
+        document.getElementById('quizFeedback').hidden=true;
+        document.getElementById('quizExplanation').hidden=true;
+        questionCounted=false;questionSolved=false;clearScratchPad();
+        setTimeout(()=>document.getElementById('quizAnswer').focus(),80);
+      }
+      function updateQuizScore(){document.getElementById('quizScore').textContent=quizScore;document.getElementById('quizTotal').textContent=quizTotal;}
+      function submitQuizAnswer(){
+        const input=document.getElementById('quizAnswer'),value=Number(input.value),feedback=document.getElementById('quizFeedback');
+        if(input.value.trim()===''||!Number.isFinite(value)){feedback.hidden=false;feedback.className='quiz-feedback wrong';feedback.textContent='请先输入一个数字答案。';return;}
+        if(!questionCounted){quizTotal++;questionCounted=true;updateQuizScore();}
+        const expected=qround(quizQuestion.answer),correct=Math.abs(value-expected)<=.011;
+        feedback.hidden=false;
+        if(correct){
+          if(!questionSolved){quizScore++;questionSolved=true;updateQuizScore();}
+          feedback.className='quiz-feedback correct';feedback.innerHTML='✓ 回答正确！面积是 <b>'+expected+'</b> 平方单位。';
+          input.disabled=true;document.getElementById('submitAnswer').disabled=true;document.getElementById('submitAnswer').textContent='已答对';
+          const list=document.getElementById('explanationSteps');list.innerHTML='';
+          quizQuestion.steps.forEach(step=>{const li=document.createElement('li');li.textContent=step;list.appendChild(li);});
+          document.getElementById('quizExplanation').hidden=false;
+        }else{
+          feedback.className='quiz-feedback wrong';
+          const relation=value>expected?'偏大':'偏小';
+          feedback.innerHTML='× 还差一点，你的答案'+relation+'。提示：'+(quizQuestion.kind==='subtract'?'先算整体，再减去白色挖空部分。':quizQuestion.kind==='combine'?'把图形拆开，分别求面积后相加。':'先确认使用的公式和已知量。');
+        }
+      }
+
+      const scratch=document.getElementById('scratchCanvas'),scratchCtx=scratch.getContext('2d');
+      let scratchDrawing=false,scratchEraser=false;
+      function resizeScratch(){
+        const rect=scratch.getBoundingClientRect();if(!rect.width||!rect.height)return;
+        const ratio=Math.min(devicePixelRatio||1,2);scratch.width=rect.width*ratio;scratch.height=rect.height*ratio;scratchCtx.setTransform(ratio,0,0,ratio,0,0);
+      }
+      function clearScratchPad(){scratchCtx.save();scratchCtx.setTransform(1,0,0,1,0,0);scratchCtx.clearRect(0,0,scratch.width,scratch.height);scratchCtx.restore();}
+      function scratchPoint(e){const r=scratch.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+      scratch.addEventListener('pointerdown',e=>{scratchDrawing=true;scratch.setPointerCapture(e.pointerId);const p=scratchPoint(e);scratchCtx.beginPath();scratchCtx.moveTo(p.x,p.y);e.preventDefault();});
+      scratch.addEventListener('pointermove',e=>{if(!scratchDrawing)return;const p=scratchPoint(e);scratchCtx.globalCompositeOperation=scratchEraser?'destination-out':'source-over';scratchCtx.strokeStyle='#26343e';scratchCtx.lineWidth=scratchEraser?22:3;scratchCtx.lineCap='round';scratchCtx.lineJoin='round';scratchCtx.lineTo(p.x,p.y);scratchCtx.stroke();e.preventDefault();});
+      const endScratch=()=>{scratchDrawing=false;scratchCtx.closePath();};scratch.addEventListener('pointerup',endScratch);scratch.addEventListener('pointercancel',endScratch);
+      document.getElementById('penTool').onclick=()=>{scratchEraser=false;document.getElementById('penTool').classList.add('active');document.getElementById('eraserTool').classList.remove('active');};
+      document.getElementById('eraserTool').onclick=()=>{scratchEraser=true;document.getElementById('eraserTool').classList.add('active');document.getElementById('penTool').classList.remove('active');};
+      document.getElementById('clearScratch').onclick=clearScratchPad;
+
+      function setPracticeMode(on){
+        practiceMode=on;document.querySelector('.app').classList.toggle('practice-mode',on);
+        document.getElementById('practiceWorkspace').hidden=!on;document.getElementById('quizInspector').hidden=!on;
+        document.getElementById('practiceModeBtn').innerHTML=on?'<span>探索模式</span> ◇':'<span>做题模式</span> ✎';
+        if(on){document.getElementById('emptyState').hidden=true;document.getElementById('inspectorContent').hidden=true;setTimeout(()=>{resizeScratch();nextQuizQuestion();},50);}
+        else{updateInspector();render();}
+      }
+      document.getElementById('practiceModeBtn').onclick=()=>setPracticeMode(!practiceMode);
+      document.getElementById('quizTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;quizKind=b.dataset.kind;document.querySelectorAll('#quizTabs button').forEach(x=>x.classList.toggle('active',x===b));nextQuizQuestion();});
+      document.getElementById('submitAnswer').onclick=submitQuizAnswer;
+      document.getElementById('quizAnswer').addEventListener('keydown',e=>{if(e.key==='Enter')submitQuizAnswer();});
+      document.getElementById('nextQuestion').onclick=nextQuizQuestion;
+      new ResizeObserver(()=>{if(practiceMode)resizeScratch();}).observe(scratch);
+
+      document.getElementById('fullscreenBtn').onclick=()=>{
+        if(document.fullscreenElement)document.exitFullscreen();
+        else if(workspace.requestFullscreen)workspace.requestFullscreen();
+      };
+      document.addEventListener('fullscreenchange',()=>{document.getElementById('fullscreenBtn').textContent=document.fullscreenElement?'⊠':'⛶';setTimeout(render,50);});
+      window.addEventListener('resize',render);
+
+      saveHistory();
+      setTimeout(()=>addShape('triangle'),80);
+    })();
+  </script>
+</body>
+</html>

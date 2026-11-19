@@ -2,7 +2,7 @@ import hashlib, json, secrets, time
 from pathlib import Path
 from flask import Blueprint, current_app, g, jsonify, request, send_file
 from .db import get_db
-from .security import hash_token, new_token, require_device, require_user
+from .security import device_for_user, hash_token, new_token, require_device, require_user
 
 bp=Blueprint("agents",__name__,url_prefix="/api")
 
@@ -23,6 +23,8 @@ def enroll():
     d=request.get_json(silent=True) or {}; uid=(d.get("device_uid") or "").strip()
     if not uid: return jsonify(error="device_uid 不能为空"),400
     old=get_db().execute("SELECT * FROM devices WHERE device_uid=?",(uid,)).fetchone(); token=new_token(); now=int(time.time()); name=d.get("hostname") or d.get("name") or uid
+    if old and get_db().execute("SELECT 1 FROM android_devices WHERE device_id=?", (old["id"],)).fetchone():
+        return jsonify(error="已配对 Android 设备不能通过开放注册重置"),409
     if old:
         get_db().execute("UPDATE devices SET token_hash=?,name=?,active=1,last_seen=?,stats_json=? WHERE id=?",(hash_token(token),name,now,json.dumps(d,ensure_ascii=False),old["id"])); created=False
     else:
@@ -44,7 +46,9 @@ def heartbeat():
 @bp.get("/agent/poll")
 @require_device
 def poll():
-    wait=max(0,min(int(request.args.get("wait",0)),25)); deadline=time.time()+wait; rows=[]; first=True
+    try: wait=max(0,min(int(request.args.get("wait",0)),25))
+    except ValueError: return jsonify(error="wait 必须为整数"),400
+    deadline=time.time()+wait; rows=[]; first=True
     while first or time.time()<=deadline:
         first=False
         db=get_db(); db.execute("BEGIN IMMEDIATE")
@@ -53,7 +57,9 @@ def poll():
             now=int(time.time())
             for r in rows:
                 claim=new_token(); db.execute("UPDATE tasks SET status='claimed',claim_token=?,claimed_at=? WHERE id=? AND status='pending'",(claim,now,r["id"]))
-            db.commit(); rows=db.execute("SELECT * FROM tasks WHERE device_id=? AND status='claimed' AND claimed_at=? ORDER BY id",(g.device["id"],now)).fetchall(); break
+            ids=[r["id"] for r in rows]
+            rows=db.execute("SELECT * FROM tasks WHERE id IN ("+",".join("?" for _ in ids)+") ORDER BY id",ids).fetchall()
+            db.commit(); break
         db.commit()
         if time.time()>=deadline: break
         time.sleep(.25)
@@ -62,10 +68,27 @@ def poll():
 @bp.post("/agent/tasks/<int:task_id>/result")
 @require_device
 def task_result(task_id):
-    d=request.get_json(silent=True) or {}; row=get_db().execute("SELECT * FROM tasks WHERE id=? AND device_id=?",(task_id,g.device["id"])).fetchone()
-    if not row: return jsonify(error="任务不存在"),404
-    if row["claim_token"] and d.get("claim_token")!=row["claim_token"]: return jsonify(error="claim_token 无效"),409
-    status=d.get("status","done"); get_db().execute("UPDATE tasks SET status=?,result_json=?,finished_at=? WHERE id=?",(status,json.dumps(d,ensure_ascii=False),int(time.time()),task_id)); get_db().commit()
+    d=request.get_json(silent=True)
+    if not isinstance(d,dict): return jsonify(error="请求体必须为对象"),400
+    db=get_db(); db.execute("BEGIN IMMEDIATE")
+    row=db.execute("SELECT * FROM tasks WHERE id=? AND device_id=?",(task_id,g.device["id"])).fetchone()
+    if not row:
+        db.rollback(); return jsonify(error="任务不存在"),404
+    if not row["claim_token"] or d.get("claim_token")!=row["claim_token"]:
+        db.rollback(); return jsonify(error="claim_token 无效或任务尚未领取"),409
+    status=d.get("status","done")
+    managed=db.execute("SELECT 1 FROM android_devices WHERE device_id=?",(g.device["id"],)).fetchone()
+    if managed and (status not in ("done","error","waiting_user") or not isinstance(d.get("result"),dict)):
+        db.rollback(); return jsonify(error="Android 任务状态或结果无效"),400
+    if not isinstance(status,str) or status not in ("done","error","waiting_user","timeout"):
+        db.rollback(); return jsonify(error="任务状态无效"),400
+    if row["status"] in ("done","error","timeout"):
+        db.rollback()
+        if row["result_json"] and json.loads(row["result_json"])==d: return jsonify(ok=True)
+        return jsonify(error="已完成任务不能修改"),409
+    db.execute("UPDATE tasks SET status=?,result_json=?,finished_at=? WHERE id=?",
+               (status,json.dumps(d,ensure_ascii=False),None if status=="waiting_user" else int(time.time()),task_id))
+    db.commit()
     return jsonify(ok=True)
 
 @bp.route("/agent/fs-blobs/<token>",methods=["GET","POST"])
@@ -87,6 +110,8 @@ def agent_blob(token):
 @bp.get("/agent/services/<int:sid>/archive")
 @require_device
 def service_archive(sid):
+    if get_db().execute("SELECT 1 FROM android_devices WHERE device_id=?",(g.device["id"],)).fetchone():
+        return jsonify(error="Android 设备不能下载服务归档"),403
     row=get_db().execute("SELECT * FROM services WHERE id=?",(sid,)).fetchone()
     if not row:return jsonify(error="服务不存在"),404
     return send_file(row["archive_path"],as_attachment=True,download_name=Path(row["archive_path"]).name)
@@ -102,21 +127,26 @@ def devices():
 def create_task(device_id):
     d=request.get_json(silent=True) or {}; kind=(d.get("kind") or "").strip()
     if not kind:return jsonify(error="kind 不能为空"),400
-    dev=get_db().execute("SELECT * FROM devices WHERE id=?",(device_id,)).fetchone()
-    if not dev:return jsonify(error="设备不存在"),404
-    if g.user["role"]!="admin" and dev["owner_id"]!=g.user["id"]:return jsonify(error="无设备权限"),403
+    dev,error=device_for_user(device_id)
+    if error:return error
+    if get_db().execute("SELECT 1 FROM android_devices WHERE device_id=?",(device_id,)).fetchone():
+        return jsonify(error="请使用 Android 管理中的应用、策略与文件操作"),400
     cur=get_db().execute("INSERT INTO tasks(device_id,kind,payload_json,status,created_by,created_at) VALUES(?,?,?,?,?,?)",(device_id,kind,json.dumps(d.get("payload") or {},ensure_ascii=False),"pending",g.user["id"],int(time.time())));get_db().commit()
     return jsonify(id=cur.lastrowid,status="pending"),201
 
 @bp.get("/devices/<int:device_id>/tasks")
 @require_user()
 def tasks(device_id):
+    dev,error=device_for_user(device_id)
+    if error:return error
     rows=get_db().execute("SELECT * FROM tasks WHERE device_id=? ORDER BY id DESC LIMIT 200",(device_id,)).fetchall()
     return jsonify(tasks=[{"id":r["id"],"kind":r["kind"],"status":r["status"],"payload":json.loads(r["payload_json"]),"result":json.loads(r["result_json"]) if r["result_json"] else None} for r in rows])
 
 @bp.post("/devices/<int:device_id>/blobs")
 @require_user()
 def create_blob(device_id):
+    dev,error=device_for_user(device_id)
+    if error:return error
     direction=request.args.get("direction","push"); token=secrets.token_urlsafe(24); filename=request.args.get("filename","blob.bin"); path=Path(current_app.config["DATA_DIR"])/"blobs"/(token+".bin"); size=None;sha=None
     if direction=="push":
         shaobj=hashlib.sha256();size=0

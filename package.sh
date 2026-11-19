@@ -3,7 +3,30 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
-VERSION="${VERSION:-$(<VERSION)}"
+
+bump_patch() {
+    local current="${1//[[:space:]]/}"
+    [[ "$current" =~ ^([0-9]+(\.[0-9]+)*) ]] || { echo "VERSION 格式无效：$1" >&2; exit 1; }
+    local prefix="${BASH_REMATCH[1]}"
+    local head="${prefix%.*}"
+    local last="${prefix##*.}"
+    if [[ "$head" == "$prefix" ]]; then
+        echo "$((10#$last + 1))"
+    else
+        echo "${head}.$((10#$last + 1))"
+    fi
+}
+
+CURRENT="$(<VERSION)"
+CURRENT="${CURRENT//[[:space:]]/}"
+if [[ -n "${VERSION:-}" ]]; then
+    echo "使用指定版本：$VERSION"
+else
+    VERSION="$(bump_patch "$CURRENT")"
+    echo "版本已更新：$CURRENT -> $VERSION"
+fi
+printf '%s\n' "$VERSION" > VERSION
+
 OUTPUT="${1:-$SCRIPT_DIR/dist/simple-server-$VERSION.tar.gz}"
 mkdir -p "$(dirname "$OUTPUT")"
 
@@ -25,5 +48,5 @@ tar -czf "$OUTPUT" \
     --exclude='*.db-shm' \
     .
 
-echo "打包完成：$(du -h "$OUTPUT" | awk '{print $1}')"
+echo "打包完成：$(du -h "$OUTPUT" | awk '{print $1}')  版本 $VERSION"
 echo "部署后直接执行：./run.sh"

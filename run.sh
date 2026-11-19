@@ -24,6 +24,10 @@ fi
 
 echo "Dev Control Server 启动中（版本 $(<VERSION)）"
 echo "  地址: http://${HOST}:${PORT}"
+if [[ "${HOST}" == "0.0.0.0" ]]; then
+    LAN_HOST="${LAN_HOST:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+    [[ -n "${LAN_HOST}" ]] && echo "  局域网访问: http://${LAN_HOST}:${PORT}"
+fi
 echo "  管理员: ${ADMIN_USERNAME}"
 set +e
 "$PYTHON" "$SCRIPT_DIR/run.py"

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>质数探险岛：质数与质因数分解</title>
+<style>
+:root{
+  --bg:#f6f8ff; --card:#ffffff; --text:#24324a; --muted:#6d7890;
+  --primary:#5865f2; --primary2:#7c4dff; --good:#19a974; --bad:#e05260;
+  --warn:#f4a340; --line:#dfe5f3; --shadow:0 12px 30px rgba(45,57,94,.12);
+}
+*{box-sizing:border-box} body{margin:0;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:linear-gradient(135deg,#f7f8ff,#eef7ff);color:var(--text)}
+header{position:relative;padding:34px 18px 22px;text-align:center;background:linear-gradient(135deg,#5965f3,#7746e7);color:white}
+header h1{margin:0 0 10px;font-size:clamp(28px,5vw,46px)} header p{margin:0;opacity:.92}.back-home{position:absolute;left:18px;top:18px;padding:9px 13px;border:1px solid rgba(255,255,255,.45);border-radius:999px;color:white;background:rgba(255,255,255,.14);font-size:13px;text-decoration:none;backdrop-filter:blur(8px)}.back-home:hover{background:rgba(255,255,255,.24)}@media(max-width:560px){.back-home{position:static;display:inline-block;margin-bottom:14px}}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}.tabs{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:-38px auto 24px;position:relative}
+.tab{border:0;background:white;padding:12px 18px;border-radius:999px;box-shadow:var(--shadow);cursor:pointer;font-weight:700;color:#49526a}.tab.active{background:#1f2a44;color:white}
+.panel{display:none}.panel.active{display:block}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}.card{background:var(--card);border-radius:22px;padding:22px;box-shadow:var(--shadow);border:1px solid rgba(90,100,150,.08)}
+h2{margin-top:0;font-size:24px}.tip{background:#f0f4ff;border-left:5px solid var(--primary);padding:12px 14px;border-radius:10px;color:#4a5570}.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
+input[type=number]{width:130px;padding:11px 12px;border:1px solid #ccd5ea;border-radius:12px;font-size:18px}button.action{border:0;border-radius:12px;padding:11px 16px;background:var(--primary);color:white;font-weight:700;cursor:pointer}button.action.secondary{background:#edf0ff;color:#4e5ad8}.result{margin-top:12px;font-weight:700}
+.number-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:8px;margin-top:14px}.num{aspect-ratio:1;display:grid;place-items:center;border-radius:13px;background:#eef1f8;font-weight:800;cursor:pointer;transition:.2s}.num.prime{background:#dff7ec;color:#08734c;border:2px solid #8cd9ba}.num.composite{background:#fff0e2;color:#a05a00}.num.one{background:#eeeef3;color:#747487}.num:hover{transform:translateY(-2px)}
+.factor-pairs{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.pair{padding:10px 12px;border-radius:12px;background:#f5f7fb;border:1px solid var(--line);font-weight:700}.pair.special{background:#dff7ec;border-color:#8cd9ba}
+.factor-tree{min-height:320px;display:flex;align-items:center;justify-content:flex-start;overflow:auto;padding:10px}.factor-tree svg{display:block;margin:auto}.tree-edge{stroke:#8794b4;stroke-width:3;stroke-linecap:round}.tree-node{fill:#edf0ff;stroke:#bfc7ff;stroke-width:2}.tree-node.prime{fill:#dcf7eb;stroke:#72d2ac}.tree-text{font-weight:900;font-size:16px;fill:#28324d}.tree-text.prime{fill:#08734c}
+.quiz-box{max-width:760px;margin:auto}.question{font-size:22px;font-weight:800;margin:10px 0 18px}.options{display:grid;gap:10px}.opt{padding:13px 14px;border:2px solid var(--line);border-radius:14px;background:white;text-align:left;cursor:pointer;font-size:17px}.opt:hover{border-color:#aeb8ff}.opt.correct{border-color:#35b980;background:#e7faef}.opt.wrong{border-color:#ef7c86;background:#fff0f1}.score{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f3f5fb;padding:12px 14px;border-radius:14px;margin-bottom:18px}.progress{height:10px;background:#e6eaf4;border-radius:999px;overflow:hidden;margin-top:14px}.progress span{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--primary2));width:0}.explain{margin-top:14px;padding:12px;border-radius:12px;background:#f6f8ff;display:none}.badge{display:inline-block;padding:4px 9px;border-radius:999px;background:#e8ebff;color:#4e5ad8;font-size:13px;font-weight:800}.footer-note{text-align:center;color:var(--muted);margin-top:28px;font-size:14px}
+.rule-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px}.rule-card{border:1px solid var(--line);border-radius:16px;padding:15px;background:#fbfcff}.rule-card b{font-size:22px;color:var(--primary)}.rule-card .example{margin-top:8px;color:var(--muted);font-size:14px}.rule-demo{display:grid;gap:9px;margin-top:12px}.rule-row{padding:10px 12px;border-radius:12px;background:#f5f7fb;border:1px solid var(--line)}.rule-row.hit{background:#e4f8ee;border-color:#8cd9ba}.random-number{font-size:54px;font-weight:900;text-align:center;color:var(--primary);padding:10px}.factor-steps{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.step-chip{background:#edf0ff;border-radius:999px;padding:8px 12px;font-weight:800}.sieve-layout{display:grid;gap:18px}.sieve-viewport{width:100%;min-width:320px;max-width:100%;overflow:visible;border:1px solid var(--line);border-radius:14px;padding:10px;background:#fafbff;resize:horizontal;box-sizing:border-box}.sieve-grid{--cols:25;display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:4px;width:100%}.sieve-cell{aspect-ratio:1/1;min-width:0;display:grid;place-items:center;border-radius:7px;background:#eef1f8;font-size:clamp(9px,1.1vw,14px);font-weight:800;transition:.2s;border:1px solid transparent;box-sizing:border-box}.sieve-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}.sieve-toolbar label{font-weight:800}.sieve-size-note{font-size:13px;color:var(--muted)}.sieve-cell.one{background:#ddd;color:#777}.sieve-cell.crossed{text-decoration:line-through;opacity:.82}.sieve-cell.current{outline:3px solid #222;transform:scale(1.08);z-index:2}.sieve-cell.prime-left{background:#dff7ec!important;color:#08734c!important;text-decoration:none;opacity:1;border-color:#72d2ac}.sieve-legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.legend-chip{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;background:#f5f7fb;font-size:12px}.legend-dot{width:12px;height:12px;border-radius:3px;display:inline-block}.analysis-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:15px}.metric{background:#f5f7fb;border-radius:14px;padding:14px;text-align:center}.metric strong{display:block;font-size:28px;color:var(--primary)}.bar-chart{display:flex;align-items:flex-end;gap:5px;height:250px;padding:18px 5px 30px;border-bottom:2px solid #cfd7ea;overflow-x:auto}.bar-col{min-width:28px;flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;position:relative}.bar{width:70%;min-height:2px;background:linear-gradient(180deg,var(--primary2),var(--primary));border-radius:8px 8px 2px 2px}.bar-val{font-size:12px;font-weight:800;margin-bottom:4px}.bar-label{position:absolute;bottom:-24px;font-size:10px;color:var(--muted);white-space:nowrap}.pi-meter{font-size:20px;font-weight:800;margin:15px 0}.mini-line{height:220px;position:relative}.mini-line svg{width:100%;height:100%;overflow:visible}.mini-line polyline{fill:none;stroke-width:3}.mini-line circle{fill:var(--primary2)}.curve-legend{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 6px}.curve-key{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:800}.curve-line{width:24px;height:4px;border-radius:999px;display:inline-block}.dual-chart-note{font-size:13px;color:var(--muted);margin-top:8px}.delta-chart{display:flex;align-items:center;gap:4px;height:220px;overflow-x:auto;padding:16px 4px 32px;border-bottom:2px solid #cfd7ea}.delta-col{min-width:40px;flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;position:relative}.delta-bar{width:68%;min-height:3px;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,var(--primary2),var(--primary))}.delta-val{font-size:11px;font-weight:800}.delta-label{position:absolute;bottom:-25px;font-size:10px;color:var(--muted);white-space:nowrap}.delta-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}.delta-table th,.delta-table td{padding:8px;border-bottom:1px solid var(--line);text-align:center}.delta-table th{background:#f5f7fb}.up{color:#b04450;font-weight:800}.down{color:#08734c;font-weight:800}
+@media(max-width:600px){.children{gap:22px}.card{padding:17px}.tab{padding:10px 13px}}
+</style>
+</head>
+<body>
+<header><a class="back-home" href="index.html">← 返回数学实验室</a><h1>质数探险岛</h1><p>看图理解质数 · 动手做质因数分解 · 做题闯关</p></header>
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab active" data-tab="learn">① 认识质数</button>
+    <button class="tab" data-tab="factor">② 质因数分解</button>
+    <button class="tab" data-tab="rules">③ 分解规律</button>
+    <button class="tab" data-tab="sieve">④ 质数筛选法</button>
+    <button class="tab" data-tab="analysis">⑤ 质数个数</button>
+    <button class="tab" data-tab="quiz">⑥ 闯关测验</button>
+  </div>
+
+  <section id="learn" class="panel active">
+    <div class="grid">
+      <div class="card">
+        <h2>什么是质数？</h2>
+        <p>一个<strong>大于 1</strong>的整数，如果它只有 <strong>1 和它本身</strong>两个正因数，它就是质数。</p>
+        <div class="tip">例如 7 的正因数只有 1 和 7，所以 7 是质数。1 不是质数，因为它只有 1 个正因数。</div>
+        <div class="controls"><label>输入一个数：</label><input id="primeInput" type="number" min="1" value="17"><button class="action" onclick="checkPrime()">检查</button></div>
+        <div id="primeResult" class="result"></div><div id="pairBox" class="factor-pairs"></div>
+      </div>
+      <div class="card">
+        <h2>1～50 质数地图</h2>
+        <p>绿色是质数，橙色是合数，灰色的 1 既不是质数也不是合数。点击数字可查看。</p>
+        <div id="numberGrid" class="number-grid"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="factor" class="panel">
+    <div class="grid">
+      <div class="card">
+        <h2>质因数分解是什么？</h2>
+        <p>把一个合数写成若干个质数相乘的形式，叫做<strong>质因数分解</strong>。</p>
+        <div class="tip">例：60 = 2 × 2 × 3 × 5。每个因数都是质数，所以分解完成。</div>
+        <div class="controls"><label>选择一个合数：</label><input id="factorInput" type="number" min="2" value="60"><button class="action" onclick="drawTree()">生成分解树</button></div>
+        <div id="factorSummary" class="result"></div>
+      </div>
+      <div class="card"><h2>图形化分解树</h2><div id="treeBox" class="factor-tree"></div></div>
+    </div>
+  </section>
+
+
+
+  <section id="rules" class="panel">
+    <div class="card">
+      <h2>20 以内质因数的“快速发现规律”</h2>
+      <p>做质因数分解时，可以按 <strong>2 → 3 → 5 → 7 → 11 → 13 → 17 → 19</strong> 的顺序尝试。只要发现能整除，就先除掉它，再继续判断商。</p>
+      <div class="tip">核心想法：不是一上来就“猜分解式”，而是用整除规律快速找到第一个质因数。例如末位是 0、2、4、6、8，就一定能先分出一个 2。</div>
+      <div id="ruleCards" class="rule-grid"></div>
+    </div>
+    <div class="grid" style="margin-top:18px">
+      <div class="card">
+        <h2>输入数字，演示判定规律</h2>
+        <div class="controls"><input id="ruleInput" type="number" min="2" value="84"><button class="action" onclick="showRuleDemo()">分析这个数</button></div>
+        <div id="ruleDemo" class="rule-demo"></div>
+      </div>
+      <div class="card">
+        <h2>随机产生一个数进行分解</h2>
+        <p>点击按钮随机产生 2～300 的整数，然后观察它如何一步一步拆成质因数。</p>
+        <div class="random-number" id="randomNumber">84</div>
+        <div class="controls"><button class="action" onclick="randomFactor()">🎲 换一个随机数</button><button class="action secondary" onclick="sendRandomToTree()">查看分解树</button></div>
+        <div id="randomSteps" class="factor-steps"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sieve" class="panel">
+    <div class="sieve-layout">
+      <div class="card">
+        <h2>埃拉托色尼筛选法</h2>
+        <p>修改筛选上限后，数字区域会自动重新排版，完整显示 1～上限的全部数字。拖动数字区域右下角还可以改变区域宽度，网格会自动适配，不需要缩放进度条。</p>
+        <div class="tip">步骤：从 2 开始，依次保留质数并划掉它的倍数。只需要筛到 √n；之后仍未被划掉的数就是质数。</div>
+        <div class="sieve-toolbar">
+          <label>筛选上限：</label><input id="sieveMaxInput" type="number" min="20" max="1000" step="10" value="1000">
+          <button class="action secondary" onclick="applySieveRange()">应用范围</button>
+          <span id="sieveLayoutInfo" class="sieve-size-note"></span>
+        </div>
+        <div class="controls"><button class="action" onclick="sieveNext()">下一步</button><button class="action secondary" onclick="sieveAuto()">自动演示</button><button class="action secondary" onclick="showAllSievePrimes()">直接显示全部质数</button><button class="action secondary" onclick="resetSieve()">重新开始</button></div>
+        <div id="sieveInfo" class="result">准备开始：先把 1 排除。</div><div id="sieveLegend" class="sieve-legend"></div>
+      </div>
+      <div class="card"><h2 id="sieveTitle">1～1000 筛选动画</h2><div id="sieveViewport" class="sieve-viewport"><div id="sieveGrid" class="sieve-grid"></div></div></div>
+    </div>
+  </section>
+
+  <section id="analysis" class="panel">
+    <div class="grid">
+      <div class="card">
+        <h2>质数的个数怎么变化？</h2>
+        <p>质数有无穷多个，但数字越大，质数会变得<strong>越来越稀疏</strong>。下面用“每 10 个数里有几个质数”来观察。</p>
+        <div class="controls"><label>分析到：</label><input id="analysisMax" type="number" min="20" max="1000" step="10" value="100"><button class="action" onclick="renderPrimeAnalysis()">重新分析</button></div>
+        <div id="analysisSummary" class="analysis-summary"></div>
+      </div>
+      <div class="card">
+        <h2>每 10 个数中的质数个数</h2>
+        <div id="primeBars" class="bar-chart"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h2>π(n) 与 Δπ(n) 双曲线</h2>
+      <p>紫色曲线表示累计质数个数 π(n)；橙色曲线表示差值 Δπ(n)=π(n)−π(n−10)，即每增加 10 个整数，新出现多少个质数。</p>
+      <input id="piSlider" type="range" min="10" max="1000" step="10" value="100" oninput="updatePiMeter()" style="width:100%">
+      <div id="piMeter" class="pi-meter"></div>
+      <div class="curve-legend"><span class="curve-key"><i class="curve-line" style="background:#6673f0"></i>π(n) 累计值（左轴）</span><span class="curve-key"><i class="curve-line" style="background:#f39a45"></i>Δπ(n) 每 10 个数新增量（右轴）</span></div>
+      <div id="piLine" class="mini-line"></div>
+      <div class="dual-chart-note">左侧刻度对应 π(n)，右侧刻度对应 Δπ(n)。累计值持续上升，而差值会上下波动，反映不同区间中质数分布并不均匀。</div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h2>每增加 100 的差量统计</h2>
+      <p>这里保留更大的区间统计，用来观察长期趋势：每增加 100 个整数，新增的质数数量整体会逐渐减少，但并不是严格单调下降。</p>
+      <div id="deltaSummary" class="analysis-summary"></div>
+      <div id="deltaTable"></div>
+    </div>
+  </section>
+
+  <section id="quiz" class="panel">
+    <div class="card quiz-box">
+      <h2>质数闯关测验 <span class="badge">随机 8 题</span></h2>
+      <div class="controls" style="justify-content:space-between"><div>每次都会生成不同难度、不同数字的题目。</div><button class="action secondary" onclick="generateQuiz()">🎲 重新生成 8 题</button></div>
+      <div class="score"><span>第 <b id="qIndex">1</b>/8 题 · <span id="qDifficulty" class="badge">基础</span></span><span>得分：<b id="score">0</b></span></div>
+      <div id="question" class="question"></div><div id="options" class="options"></div><div id="explain" class="explain"></div>
+      <div class="progress"><span id="progress"></span></div>
+      <div class="controls" style="justify-content:flex-end"><button id="nextBtn" class="action" onclick="nextQuestion()" disabled>下一题</button></div>
+    </div>
+  </section>
+  <div class="footer-note">提示：质数有无穷多个；2 是唯一的偶质数。</div>
+</div>
+<script>
+function isPrime(n){if(n<2)return false;if(n===2)return true;if(n%2===0)return false;for(let i=3;i*i<=n;i+=2)if(n%i===0)return false;return true}
+function factorPairs(n){let a=[];for(let i=1;i*i<=n;i++)if(n%i===0)a.push([i,n/i]);return a}
+function checkPrime(nArg){const n=Number(nArg??document.getElementById('primeInput').value),r=document.getElementById('primeResult'),box=document.getElementById('pairBox');document.getElementById('primeInput').value=n;box.innerHTML='';
+ if(!Number.isInteger(n)||n<1){r.textContent='请输入大于等于 1 的整数。';return}
+ const pairs=factorPairs(n); pairs.forEach(p=>{const d=document.createElement('div');d.className='pair'+(pairs.length===1&&n>1?' special':'');d.textContent=`${p[0]} × ${p[1]} = ${n}`;box.appendChild(d)});
+ if(n===1)r.innerHTML='1 <span style="color:#747487">既不是质数，也不是合数。</span>'; else if(isPrime(n))r.innerHTML=`${n} 是 <span style="color:#08734c">质数 ✓</span>，只有 1 和 ${n} 两个正因数。`; else r.innerHTML=`${n} 是 <span style="color:#a05a00">合数</span>，它有不止两个正因数。`;}
+function renderNumbers(){const g=document.getElementById('numberGrid');for(let n=1;n<=50;n++){let d=document.createElement('div');d.className='num '+(n===1?'one':isPrime(n)?'prime':'composite');d.textContent=n;d.onclick=()=>checkPrime(n);g.appendChild(d)}}
+function primeFactors(n){let f=[],x=n;for(let p=2;p*p<=x;p++){while(x%p===0){f.push(p);x/=p}}if(x>1)f.push(x);return f}
+function splitFactor(n){if(isPrime(n))return null;for(let i=2;i<=Math.sqrt(n);i++)if(n%i===0)return[i,n/i];return null}
+function buildFactorTree(n){const node={n,children:[]};const s=splitFactor(n);if(s)node.children=s.map(buildFactorTree);return node}
+function drawTree(){
+ const n=Number(document.getElementById('factorInput').value),box=document.getElementById('treeBox'),sum=document.getElementById('factorSummary');box.innerHTML='';
+ if(!Number.isInteger(n)||n<2){sum.textContent='请输入大于等于 2 的整数。';return}
+ const fs=primeFactors(n);sum.innerHTML=isPrime(n)?`${n} 本身就是质数，不需要继续分解。`:`${n} = ${fs.join(' × ')}`;
+ const root=buildFactorTree(n);let leaf=0,maxDepth=0;
+ function layout(node,depth){maxDepth=Math.max(maxDepth,depth);if(!node.children.length){node.x=leaf++;}else{node.children.forEach(c=>layout(c,depth+1));node.x=(node.children[0].x+node.children[node.children.length-1].x)/2;}node.depth=depth}
+ layout(root,0);const xGap=105,yGap=95,nodeW=58,nodeH=38,pad=32;const W=Math.max(420,(Math.max(leaf,1)-1)*xGap+nodeW+pad*2),H=(maxDepth+1)*yGap+pad*2;
+ function px(node){return pad+node.x*xGap}function py(node){return pad+node.depth*yGap}
+ let edges='',nodes='';function emit(node){const x=px(node),y=py(node);for(const c of node.children){const cx=px(c),cy=py(c);edges+=`<line class="tree-edge" x1="${x+nodeW/2}" y1="${y+nodeH}" x2="${cx+nodeW/2}" y2="${cy}"/>`;emit(c)}const prime=isPrime(node.n);nodes+=`<rect class="tree-node ${prime?'prime':''}" x="${x}" y="${y}" width="${nodeW}" height="${nodeH}" rx="12"/><text class="tree-text ${prime?'prime':''}" x="${x+nodeW/2}" y="${y+nodeH/2+6}" text-anchor="middle">${node.n}</text>`}emit(root);
+ box.innerHTML=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${edges}${nodes}</svg>`;
+}
+
+const divisorRules=[
+ {p:2,title:'末位看偶数',text:'个位是 0、2、4、6、8，就能被 2 整除。',ex:'84 → 末位 4，所以 84 = 2 × 42'},
+ {p:3,title:'各位数字求和',text:'各位数字之和能被 3 整除，原数就能被 3 整除。',ex:'123 → 1+2+3=6，所以能被 3 整除'},
+ {p:5,title:'末位看 0 或 5',text:'个位是 0 或 5，就能被 5 整除。',ex:'145 → 末位 5，所以 145 = 5 × 29'},
+ {p:7,title:'去末位，减 2 倍',text:'去掉个位，把剩余数减去个位的 2 倍；结果能被 7 整除，原数也能。可重复。',ex:'203 → 20−2×3=14，所以 203 能被 7 整除'},
+ {p:11,title:'奇偶位交错相减',text:'从右向左交错加减各位数字，结果是 11 的倍数（含 0），原数就能被 11 整除。',ex:'121 → 1−2+1=0，所以能被 11 整除'},
+ {p:13,title:'去末位，加 4 倍',text:'去掉个位，把剩余数加上个位的 4 倍；结果能被 13 整除，原数也能。',ex:'286 → 28+4×6=52，52 能被 13 整除'},
+ {p:17,title:'去末位，减 5 倍',text:'去掉个位，把剩余数减去个位的 5 倍；结果能被 17 整除，原数也能。',ex:'221 → 22−5×1=17，所以能被 17 整除'},
+ {p:19,title:'去末位，加 2 倍',text:'去掉个位，把剩余数加上个位的 2 倍；结果能被 19 整除，原数也能。',ex:'247 → 24+2×7=38，所以能被 19 整除'}
+];
+function renderRules(){document.getElementById('ruleCards').innerHTML=divisorRules.map(r=>`<div class="rule-card"><b>÷ ${r.p}</b><h3>${r.title}</h3><div>${r.text}</div><div class="example">例：${r.ex}</div></div>`).join('')}
+function ruleCalc(n,p){if(p===2)return `末位是 ${Math.abs(n)%10}，${n%2===0?'属于 0、2、4、6、8':'不是偶数末位'}`;if(p===3){let s=String(Math.abs(n)).split('').reduce((a,b)=>a+Number(b),0);return `各位和 = ${s}`};if(p===5)return `末位是 ${Math.abs(n)%10}`;let a=Math.floor(Math.abs(n)/10),b=Math.abs(n)%10;if(p===7)return `${a} − 2×${b} = ${a-2*b}`;if(p===11){let ds=String(Math.abs(n)).split('').reverse().map(Number),v=ds.reduce((s,x,i)=>s+(i%2? -x:x),0);return `交错和 = ${v}`};if(p===13)return `${a} + 4×${b} = ${a+4*b}`;if(p===17)return `${a} − 5×${b} = ${a-5*b}`;if(p===19)return `${a} + 2×${b} = ${a+2*b}`;}
+function showRuleDemo(){let n=Number(document.getElementById('ruleInput').value);if(!Number.isInteger(n)||n<2)return;document.getElementById('ruleDemo').innerHTML=divisorRules.map(r=>{let hit=n%r.p===0;return `<div class="rule-row ${hit?'hit':''}"><strong>${hit?'✓':'○'} 尝试 ÷ ${r.p}</strong>：${ruleCalc(n,r.p)} → ${hit?`可以整除，${n} = ${r.p} × ${n/r.p}`:'不能整除'}</div>`}).join('')}
+let currentRandom=84;
+function randomFactor(){currentRandom=Math.floor(Math.random()*299)+2;document.getElementById('randomNumber').textContent=currentRandom;let x=currentRandom,steps=[],p=2;while(x>1){while(x%p===0){steps.push(`${x} ÷ ${p} = ${x/p}`);x/=p}p++}let fs=primeFactors(currentRandom);document.getElementById('randomSteps').innerHTML=steps.map(s=>`<span class="step-chip">${s}</span>`).join('')+`<div class="result" style="width:100%">${currentRandom} = ${fs.join(' × ')}</div>`}
+function sendRandomToTree(){document.getElementById('factorInput').value=currentRandom;document.querySelector('[data-tab="factor"]').click();drawTree()}
+let sieveStep=-1,sieveTimer=null,sieveMax=1000,sievePrimes=[];
+const sieveColors=['#ffd6d6','#ffe6b8','#fff2a8','#dff0b8','#cdeccf','#cfe8ff','#d9dcff','#ead8ff','#f6d4ef','#d8f1ea','#f2dfc9','#d7f0f3','#f4d8c8'];
+function getSievePrimes(max){let a=[];for(let n=2;n*n<=max;n++)if(isPrime(n))a.push(n);return a}
+function renderSieveLegend(){document.getElementById('sieveLegend').innerHTML=sievePrimes.map((p,i)=>`<span class="legend-chip"><i class="legend-dot" style="background:${sieveColors[i%sieveColors.length]}"></i>被 ${p} 筛掉</span>`).join('')+'<span class="legend-chip"><i class="legend-dot" style="background:#dff7ec;border:1px solid #72d2ac"></i>最终质数</span>'}
+function fitSieveGrid(){const vp=document.getElementById('sieveViewport'),grid=document.getElementById('sieveGrid');if(!vp||!grid)return;const w=Math.max(300,vp.clientWidth-20);let target=36;if(sieveMax>700)target=29;else if(sieveMax>400)target=31;else if(sieveMax>200)target=34;const cols=Math.max(10,Math.min(40,Math.floor(w/target)));grid.style.setProperty('--cols',cols);document.getElementById('sieveLayoutInfo').textContent=`自动布局：每行约 ${cols} 个数字，共 ${Math.ceil(sieveMax/cols)} 行`;}
+function renderSieveGrid(){let html='';for(let i=1;i<=sieveMax;i++)html+=`<div class="sieve-cell ${i===1?'one':''}" id="sv${i}">${i}</div>`;document.getElementById('sieveGrid').innerHTML=html;document.getElementById('sieveTitle').textContent=`1～${sieveMax} 筛选动画`;renderSieveLegend();requestAnimationFrame(fitSieveGrid)}
+function applySieveRange(){let v=Math.floor(Number(document.getElementById('sieveMaxInput').value)||1000);v=Math.max(20,Math.min(1000,v));document.getElementById('sieveMaxInput').value=v;sieveMax=v;sievePrimes=getSievePrimes(sieveMax);resetSieve()}
+function resetSieve(){clearInterval(sieveTimer);sieveTimer=null;sieveStep=-1;sievePrimes=getSievePrimes(sieveMax);renderSieveGrid();document.getElementById('sieveInfo').textContent=`准备开始：1 既不是质数也不是合数。当前范围 1～${sieveMax}，只需筛到 √${sieveMax}≈${Math.sqrt(sieveMax).toFixed(1)}。`}
+function finishSieve(){for(let i=2;i<=sieveMax;i++)if(isPrime(i)){const el=document.getElementById('sv'+i);if(el)el.classList.add('prime-left')}document.getElementById('sieveInfo').textContent=`筛选完成：1～${sieveMax} 中共有 ${primeCount(sieveMax)} 个质数。`}
+function showAllSievePrimes(){clearInterval(sieveTimer);sieveTimer=null;resetSieve();while(sieveStep<sievePrimes.length-1)sieveNext();sieveNext();}
+function sieveNext(){
+ if(sieveStep>=sievePrimes.length){finishSieve();return}
+ if(sieveStep>=0){const prev=document.getElementById('sv'+sievePrimes[sieveStep]);if(prev)prev.classList.remove('current')}
+ sieveStep++;if(sieveStep>=sievePrimes.length){finishSieve();return}
+ const p=sievePrimes[sieveStep],color=sieveColors[sieveStep%sieveColors.length],pCell=document.getElementById('sv'+p);if(pCell)pCell.classList.add('current','prime-left');
+ let newly=0;for(let m=p*p;m<=sieveMax;m+=p){const el=document.getElementById('sv'+m);if(el&&!el.classList.contains('crossed')){el.classList.add('crossed');el.style.background=color;el.style.color='#4a4050';newly++}}
+ document.getElementById('sieveInfo').textContent=`第 ${sieveStep+1} 步：用 ${p} 筛选，从 ${p}×${p}=${p*p} 开始，本轮新划掉 ${newly} 个合数。`;
+}
+function sieveAuto(){resetSieve();sieveTimer=setInterval(()=>{sieveNext();if(sieveStep>=sievePrimes.length){clearInterval(sieveTimer);sieveTimer=null}},650)}
+function primeCount(n){let c=0;for(let i=2;i<=n;i++)if(isPrime(i))c++;return c}
+function renderPrimeAnalysis(){let max=Math.max(20,Math.min(1000,Math.floor(Number(document.getElementById('analysisMax').value)/10)*10));document.getElementById('analysisMax').value=max;let total=primeCount(max),density=(total/max*100).toFixed(1),lastStart=max-9,last=0;for(let i=lastStart;i<=max;i++)if(isPrime(i))last++;document.getElementById('analysisSummary').innerHTML=`<div class="metric"><strong>${total}</strong>不超过 ${max} 的质数</div><div class="metric"><strong>${density}%</strong>总体占比</div><div class="metric"><strong>${last}</strong>${lastStart}～${max} 中的质数</div>`;let bars='';for(let s=1;s<=max;s+=10){let e=Math.min(s+9,max),c=0;for(let n=Math.max(2,s);n<=e;n++)if(isPrime(n))c++;bars+=`<div class="bar-col"><div class="bar-val">${c}</div><div class="bar" style="height:${c/5*180}px"></div><div class="bar-label">${s}-${e}</div></div>`}document.getElementById('primeBars').innerHTML=bars;renderDeltaAnalysis(max)}
+function renderDeltaAnalysis(max){
+ const step=100,limit=Math.max(step,Math.ceil(max/step)*step),rows=[];let prevCount=0,prevDelta=null;
+ for(let end=step;end<=limit;end+=step){const count=primeCount(end),delta=count-prevCount,change=prevDelta===null?null:delta-prevDelta;rows.push({end,count,delta,change});prevCount=count;prevDelta=delta}
+ const last=rows[rows.length-1],before=rows.length>1?rows[rows.length-2]:null;document.getElementById('deltaSummary').innerHTML=`<div class="metric"><strong>${last.delta}</strong>最近 100 个数新增质数</div><div class="metric"><strong>${before?(last.delta-before.delta>=0?'+':'')+(last.delta-before.delta):'—'}</strong>相对上一段的差量</div><div class="metric"><strong>${(last.delta/100*100).toFixed(0)}%</strong>最近一段质数占比</div>`;
+ document.getElementById('deltaTable').innerHTML=`<table class="delta-table"><thead><tr><th>范围终点 n</th><th>累计 π(n)</th><th>本段新增 Δπ</th><th>与上一段相比</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.end}</td><td>${r.count}</td><td>${r.delta}</td><td>${r.change===null?'—':`<span class="${r.change>0?'up':r.change<0?'down':''}">${r.change>0?'+':''}${r.change}</span>`}</td></tr>`).join('')}</tbody></table>`
+}
+function updatePiMeter(){
+ const n=Number(document.getElementById('piSlider').value),c=primeCount(n),step=10,delta=c-primeCount(Math.max(0,n-step));
+ document.getElementById('piMeter').innerHTML=`π(${n}) = <span style="color:#6673f0">${c}</span>；Δπ(${n}) = π(${n})−π(${Math.max(0,n-step)}) = <span style="color:#f39a45">${delta}</span>。`;
+ const pts=[];for(let x=10;x<=1000;x+=10){const pc=primeCount(x);pts.push([x,pc,pc-primeCount(x-10)])}
+ const W=920,H=210,maxPi=primeCount(1000),maxD=Math.max(...pts.map(p=>p[2]));
+ const xPos=x=>(x-10)/990*W, yPi=y=>H-y/maxPi*H, yD=y=>H-y/maxD*H;
+ const piPoly=pts.map(([x,y])=>`${xPos(x)},${yPi(y)}`).join(' '),dPoly=pts.map(([x,,d])=>`${xPos(x)},${yD(d)}`).join(' ');
+ const cx=xPos(n),cy=yPi(c),cdy=yD(delta);
+ let leftTicks='',rightTicks='',xTicks='';
+ for(let i=0;i<=4;i++){const y=H-i*H/4,lv=Math.round(maxPi*i/4),rv=(maxD*i/4).toFixed(i===0?0:1);leftTicks+=`<text x="4" y="${y-3}" font-size="11" fill="#667085">${lv}</text><line x1="38" y1="${y}" x2="${W-38}" y2="${y}" stroke="#e6eaf4"/>`;rightTicks+=`<text x="${W-30}" y="${y-3}" font-size="11" fill="#667085">${rv}</text>`}
+ for(const xv of [10,200,400,600,800,1000]){const x=xPos(xv);xTicks+=`<text x="${x}" y="${H+18}" text-anchor="middle" font-size="11" fill="#667085">${xv}</text>`}
+ document.getElementById('piLine').innerHTML=`<svg viewBox="0 0 ${W} ${H+28}" preserveAspectRatio="none">${leftTicks}${rightTicks}${xTicks}<polyline points="${piPoly}" stroke="#6673f0"/><polyline points="${dPoly}" stroke="#f39a45"/><circle cx="${cx}" cy="${cy}" r="5" fill="#6673f0"/><circle cx="${cx}" cy="${cdy}" r="5" fill="#f39a45"/></svg>`;
+}
+
+let quiz=[],qi=0,score=0,answered=false;
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)]}
+function makePrimeChoice(level){const ranges={基础:[2,30],进阶:[31,100],挑战:[101,300]},[lo,hi]=ranges[level];let correct;do{correct=randInt(lo,hi)}while(!isPrime(correct));let opts=[correct];while(opts.length<4){let x=randInt(lo,hi);if(!isPrime(x)&&x>1&&!opts.includes(x))opts.push(x)}opts=shuffle(opts);return{q:`下面哪个数是质数？`,o:opts.map(String),a:opts.indexOf(correct),e:`${correct} 只有 1 和 ${correct} 两个正因数，所以它是质数。`,d:level}}
+function makeCompositeChoice(level){const ranges={基础:[4,30],进阶:[31,100],挑战:[101,300]},[lo,hi]=ranges[level];let correct;do{correct=randInt(lo,hi)}while(isPrime(correct));let opts=[correct];while(opts.length<4){let x=randInt(lo,hi);if(isPrime(x)&&!opts.includes(x))opts.push(x)}opts=shuffle(opts);let f=primeFactors(correct);return{q:`下面哪个数是合数？`,o:opts.map(String),a:opts.indexOf(correct),e:`${correct} 可以分解为 ${f.join(' × ')}，因此它有两个以上正因数，是合数。`,d:level}}
+function makeFactorQuestion(level){const limit=level==='基础'?60:level==='进阶'?180:400;let n,fs;do{n=randInt(12,limit);fs=primeFactors(n)}while(isPrime(n)||fs.length<2);const correct=fs.join(' × ');let distract=[];const pair=factorPairs(n).filter(x=>x[0]>1);if(pair.length)distract.push(pair[pair.length-1].join(' × '));distract.push(`2 × ${Math.floor(n/2)}`,`3 × ${Math.floor(n/3)}`,`1 × ${n}`);let opts=[correct,...distract.filter(x=>x!==correct)];opts=[...new Set(opts)].slice(0,4);while(opts.length<4)opts.push(`${pick([2,3,5,7])} × ${randInt(2,20)}`);opts=shuffle(opts);return{q:`${n} 的质因数分解是哪一个？`,o:opts,a:opts.indexOf(correct),e:`${n} = ${correct}，而且乘积中的每个因数都是质数。`,d:level}}
+function makeDivisibility(level){const p=pick(level==='基础'?[2,3,5]:level==='进阶'?[3,5,7,11]:[7,11,13,17,19]);let correct=p*randInt(2,level==='挑战'?30:15);let opts=[correct];while(opts.length<4){let x=correct+randInt(-12,12);if(x>1&&x%p!==0&&!opts.includes(x))opts.push(x)}opts=shuffle(opts);return{q:`根据整除规律，下面哪个数能被 ${p} 整除？`,o:opts.map(String),a:opts.indexOf(correct),e:`${correct} ÷ ${p} = ${correct/p}，可以整除。`,d:level}}
+function makeCountQuestion(level){const max=level==='基础'?20:level==='进阶'?50:100;const c=primeCount(max);let vals=[c];for(const d of [-3,-2,-1,1,2,3])if(c+d>0&&!vals.includes(c+d))vals.push(c+d);let opts=shuffle(vals.slice(0,4));return{q:`1～${max} 中一共有多少个质数？`,o:opts.map(String),a:opts.indexOf(c),e:`逐个筛选后，1～${max} 中共有 ${c} 个质数。`,d:level}}
+function makeConcept(level){const bank=[
+{q:'关于数字 1，下面说法正确的是？',o:['1 是质数','1 是合数','1 既不是质数也不是合数','1 是唯一的偶质数'],a:2,e:'1 只有一个正因数，因此既不是质数也不是合数。'},
+{q:'唯一的偶质数是哪一个？',o:['1','2','4','6'],a:1,e:'2 的正因数只有 1 和 2，它也是唯一的偶质数。'},
+{q:'一个大于 1 的整数只有两个正因数，这个数叫做什么？',o:['质数','合数','倍数','偶数'],a:0,e:'质数的定义就是：大于 1，且只有 1 和它本身两个正因数。'},
+{q:'埃拉托色尼筛选法中，为什么筛到 √n 左右就够了？',o:['更大的合数一定已有不超过 √n 的质因数','因为 √n 后全是质数','因为偶数已经全部消失','只是为了让动画更快'],a:0,e:'若 n 是合数，它至少有一个因数不超过 √n，因此更大的合数会在此前被筛掉。'}];let q={...pick(level==='挑战'?bank:bank.slice(0,3))};q.d=level;return q}
+function generateQuiz(){const makers=[makeConcept,makePrimeChoice,makeCompositeChoice,makeFactorQuestion,makeDivisibility,makePrimeChoice,makeFactorQuestion,makeCountQuestion];const levels=['基础','基础','基础','进阶','进阶','进阶','挑战','挑战'];quiz=makers.map((m,i)=>m(levels[i]));let seen=new Set();for(let i=0;i<quiz.length;i++){let tries=0;while(seen.has(quiz[i].q)&&tries++<10)quiz[i]=makers[i](levels[i]);seen.add(quiz[i].q)}shuffle(quiz);qi=0;score=0;document.getElementById('score').textContent=0;document.getElementById('nextBtn').style.display='inline-block';loadQ()}
+function loadQ(){answered=false;document.getElementById('nextBtn').disabled=true;document.getElementById('explain').style.display='none';document.getElementById('qIndex').textContent=qi+1;document.getElementById('progress').style.width=(qi/quiz.length*100)+'%';const q=quiz[qi];document.getElementById('qDifficulty').textContent=q.d;document.getElementById('question').textContent=q.q;const o=document.getElementById('options');o.innerHTML='';q.o.forEach((t,i)=>{let b=document.createElement('button');b.className='opt';b.textContent=String.fromCharCode(65+i)+'. '+t;b.onclick=()=>answer(i,b);o.appendChild(b)})}
+function answer(i,b){if(answered)return;answered=true;const q=quiz[qi],bs=[...document.querySelectorAll('.opt')];bs[q.a].classList.add('correct');if(i!==q.a)b.classList.add('wrong');else{score++;document.getElementById('score').textContent=score}const ex=document.getElementById('explain');ex.textContent=q.e;ex.style.display='block';document.getElementById('nextBtn').disabled=false}
+function nextQuestion(){if(qi<quiz.length-1){qi++;loadQ()}else{document.getElementById('progress').style.width='100%';document.getElementById('qDifficulty').textContent='完成';document.getElementById('question').textContent=`闯关完成！你的得分：${score} / ${quiz.length}`;document.getElementById('options').innerHTML=`<button class="action secondary" onclick="generateQuiz()">再生成一套随机题</button>`;document.getElementById('explain').style.display='block';document.getElementById('explain').textContent=score===8?'太棒了！8 道随机题全部答对。':score>=6?'掌握得不错，可以再生成一套挑战不同数字。':'建议复习后再生成一套，新的数字和题型会帮助你巩固。';document.getElementById('nextBtn').style.display='none'}}
+function restartQuiz(){generateQuiz()}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.getElementById(t.dataset.tab).classList.add('active')});
+renderNumbers();checkPrime();drawTree();renderRules();showRuleDemo();randomFactor();resetSieve();renderPrimeAnalysis();updatePiMeter();generateQuiz();
+const sieveResizeObserver=new ResizeObserver(()=>fitSieveGrid());const sieveViewport=document.getElementById('sieveViewport');if(sieveViewport)sieveResizeObserver.observe(sieveViewport);window.addEventListener('resize',fitSieveGrid);
+</script>
+</body>
+</html>
