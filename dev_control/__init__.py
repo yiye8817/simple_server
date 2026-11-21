@@ -62,6 +62,7 @@ def create_app(config=None):
     from .notes import bp as notes_bp
     from .apis import bp as apis_bp
     from .learning import bp as learning_bp
+    from .xiaobu_progress import bp as xiaobu_progress_bp
     from .words import bp as words_bp
     from .hermes import bp as hermes_bp
     app.register_blueprint(auth_bp)
@@ -81,6 +82,7 @@ def create_app(config=None):
     app.register_blueprint(notes_bp)
     app.register_blueprint(apis_bp)
     app.register_blueprint(learning_bp)
+    app.register_blueprint(xiaobu_progress_bp)
     app.register_blueprint(words_bp)
     app.register_blueprint(hermes_bp)
     if app.config["ENABLE_LEGACY_TOOLS"]:

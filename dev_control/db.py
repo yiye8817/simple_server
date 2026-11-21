@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS devices(id INTEGER PRIMARY KEY,device_uid TEXT UNIQUE
 CREATE TABLE IF NOT EXISTS tasks(id INTEGER PRIMARY KEY,device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,kind TEXT NOT NULL,payload_json TEXT NOT NULL DEFAULT '{}',status TEXT NOT NULL DEFAULT 'pending',claim_token TEXT,result_json TEXT,created_by INTEGER REFERENCES users(id),created_at INTEGER NOT NULL,claimed_at INTEGER,finished_at INTEGER);
 CREATE TABLE IF NOT EXISTS blobs(token TEXT PRIMARY KEY,device_id INTEGER REFERENCES devices(id),owner_id INTEGER REFERENCES users(id),direction TEXT NOT NULL,filename TEXT,size INTEGER,sha256 TEXT,expires_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS android_pairing_codes(code_hash TEXT PRIMARY KEY,owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL,created_at INTEGER NOT NULL,consumed_at INTEGER);
-CREATE TABLE IF NOT EXISTS android_devices(device_id INTEGER PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,timezone TEXT NOT NULL DEFAULT 'UTC',policy_revision INTEGER NOT NULL DEFAULT 0,policy_apps_json TEXT NOT NULL DEFAULT '{}',apps_json TEXT NOT NULL DEFAULT '[]',capabilities_json TEXT NOT NULL DEFAULT '{}',inventory_updated_at INTEGER,usage_permission INTEGER,usage_last_synced_at INTEGER);
+CREATE TABLE IF NOT EXISTS android_devices(device_id INTEGER PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,timezone TEXT NOT NULL DEFAULT 'UTC',policy_revision INTEGER NOT NULL DEFAULT 0,policy_apps_json TEXT NOT NULL DEFAULT '{}',foreground_kill_enabled INTEGER NOT NULL DEFAULT 1,apps_json TEXT NOT NULL DEFAULT '[]',capabilities_json TEXT NOT NULL DEFAULT '{}',inventory_updated_at INTEGER,usage_permission INTEGER,usage_last_synced_at INTEGER);
 CREATE TABLE IF NOT EXISTS android_runtime(device_id INTEGER PRIMARY KEY REFERENCES android_devices(device_id) ON DELETE CASCADE,observation_id TEXT NOT NULL,state TEXT NOT NULL,package_name TEXT NOT NULL,observed_at INTEGER NOT NULL,can_force_stop INTEGER NOT NULL,recent_json TEXT NOT NULL,received_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS android_files(id INTEGER PRIMARY KEY,device_id INTEGER NOT NULL REFERENCES android_devices(device_id) ON DELETE CASCADE,filename TEXT NOT NULL,mime TEXT NOT NULL,size INTEGER NOT NULL,sha256 TEXT NOT NULL,blob_token TEXT NOT NULL REFERENCES blobs(token),task_id INTEGER REFERENCES tasks(id),created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_android_files_device ON android_files(device_id,id);
@@ -30,6 +30,26 @@ CREATE TABLE IF NOT EXISTS app_updates(id INTEGER PRIMARY KEY,version TEXT NOT N
 CREATE TABLE IF NOT EXISTS access_scenarios(id INTEGER PRIMARY KEY,name TEXT UNIQUE NOT NULL,description TEXT NOT NULL DEFAULT '',whitelist_json TEXT NOT NULL DEFAULT '[]',blacklist_json TEXT NOT NULL DEFAULT '[]',enabled INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS typing_results(id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id),session_id TEXT NOT NULL,word TEXT NOT NULL,typed TEXT NOT NULL,correct INTEGER NOT NULL,timed_out INTEGER NOT NULL,elapsed_ms INTEGER NOT NULL,word_limit_s INTEGER,practice_limit_s INTEGER,created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_typing_user ON typing_results(user_id,id);
+CREATE TABLE IF NOT EXISTS xiaobu_progress_devices(
+ user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ device_id TEXT NOT NULL,
+ name TEXT NOT NULL,
+ last_synced_at INTEGER NOT NULL,
+ PRIMARY KEY(user_id,device_id)
+);
+CREATE TABLE IF NOT EXISTS xiaobu_progress_records(
+ id INTEGER PRIMARY KEY,
+ user_id INTEGER NOT NULL,
+ device_id TEXT NOT NULL,
+ kind TEXT NOT NULL,
+ record_key TEXT NOT NULL,
+ revision INTEGER NOT NULL,
+ data_json TEXT NOT NULL,
+ updated_at INTEGER NOT NULL,
+ UNIQUE(user_id,device_id,kind,record_key),
+ FOREIGN KEY(user_id,device_id) REFERENCES xiaobu_progress_devices(user_id,device_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_xiaobu_progress_device_page ON xiaobu_progress_records(user_id,device_id,id);
 CREATE INDEX IF NOT EXISTS idx_tasks_poll ON tasks(device_id,status,id);
 CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,title TEXT NOT NULL,content TEXT NOT NULL DEFAULT '',kind TEXT NOT NULL DEFAULT 'text',created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id,updated_at);
@@ -79,6 +99,9 @@ def init_db(app):
         import time
         db = get_db(); db.executescript(SCHEMA)
         db.execute("BEGIN IMMEDIATE")
+        android_cols={r[1] for r in db.execute("PRAGMA table_info(android_devices)")}
+        if "foreground_kill_enabled" not in android_cols:
+            db.execute("ALTER TABLE android_devices ADD COLUMN foreground_kill_enabled INTEGER NOT NULL DEFAULT 1")
         occurrence_cols={r[1] for r in db.execute("PRAGMA table_info(android_schedule_occurrences)")}
         if "timezone" not in occurrence_cols:
             # The first agenda schema did not retain provenance. Use the best

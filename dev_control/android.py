@@ -124,7 +124,10 @@ def managed_device(device_id):
 
 
 def policy(row):
-    return {"revision": row["policy_revision"], "layout": "paged", "apps": json.loads(row["policy_apps_json"])}
+    apps = json.loads(row["policy_apps_json"])
+    for market in CONTROLLABLE_MARKETS:
+        apps.setdefault(market, {"allowed": False, "visible": False})
+    return {"revision": row["policy_revision"], "layout": "paged", "apps": apps, "foreground_kill_enabled": bool(row["foreground_kill_enabled"])}
 
 
 def app_protected(package_name, reported):
@@ -390,7 +393,10 @@ def put_policy(device_id):
     pair, error = managed_device(device_id)
     if error:
         return error
-    rules = object_body().get("apps")
+    body = object_body()
+    rules = body.get("apps")
+    if "foreground_kill_enabled" in body and type(body["foreground_kill_enabled"]) is not bool:
+        raise ValueError("foreground_kill_enabled 必须是布尔值")
     if not isinstance(rules, dict) or len(rules) > MAX_INVENTORY:
         raise ValueError("apps 必须是至多 2000 项的规则对象")
     db = get_db()
@@ -405,8 +411,9 @@ def put_policy(device_id):
                 raise ValueError("每条规则必须包含 allowed 和 visible 布尔值")
             if pkg in protected and (not rule["allowed"] or not rule["visible"]):
                 raise ValueError("恢复及系统关键应用不能停用或隐藏")
-        db.execute("UPDATE android_devices SET policy_apps_json=?,policy_revision=policy_revision+1 WHERE device_id=?",
-                   (json.dumps(rules, ensure_ascii=False), device_id))
+        guard = body.get("foreground_kill_enabled", bool(row["foreground_kill_enabled"]))
+        db.execute("UPDATE android_devices SET policy_apps_json=?,foreground_kill_enabled=?,policy_revision=policy_revision+1 WHERE device_id=?",
+                   (json.dumps(rules, ensure_ascii=False), int(guard), device_id))
         row = db.execute("SELECT * FROM android_devices WHERE device_id=?", (device_id,)).fetchone()
         enqueue(device_id, "android.policy.sync", {})
         db.commit()

@@ -67,6 +67,10 @@ class AndroidTest(unittest.TestCase):
                                                   "install_permission": False},
                                  "apps": apps if apps is not None else [self.app_row()]})
 
+    def effective_rules(self, rules):
+        return {"com.hihonor.appmarket": {"allowed": False, "visible": False},
+                "com.huawei.appmarket": {"allowed": False, "visible": False}, **rules}
+
     def snapshot(self, dh, buckets=None, **extra):
         data = {"timezone": "UTC", "permission_granted": True,
                 "generated_at": millis("2026-10-25T04:00:00"),
@@ -144,7 +148,7 @@ class AndroidTest(unittest.TestCase):
         r = self.c.put(base + "/policy", headers=self.alice,
                        json={"apps": {"org.example.reader": {"allowed": False, "visible": True}}})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json["policy"], {"revision": 1, "layout": "paged", "apps": {"org.example.reader": {"allowed": False, "visible": True}}})
+        self.assertEqual(r.json["policy"], {"revision": 1, "layout": "paged", "apps": self.effective_rules({"org.example.reader": {"allowed": False, "visible": True}}), "foreground_kill_enabled": True})
         self.assertEqual(self.c.get("/api/android/agent/state", headers=dh).json["policy"], r.json["policy"])
         for pkg in ("android", "com.android.settings", "com.android.systemui", "app.lawnchair.managed", "org.example.keyboard"):
             for rule in ({"allowed": False, "visible": True}, {"allowed": True, "visible": False}):
@@ -152,8 +156,49 @@ class AndroidTest(unittest.TestCase):
                                            json={"apps": {pkg: rule}}).status_code, 400)
         cleared = self.c.put(base + "/policy", headers=self.alice, json={"apps": {}})
         self.assertEqual(cleared.json["policy"]["revision"], 2)
-        self.assertEqual(cleared.json["policy"]["apps"], {})
+        self.assertEqual(cleared.json["policy"]["apps"], self.effective_rules({}))
         self.assertEqual([t["kind"] for t in self.c.get("/api/agent/poll", headers=dh).json["tasks"]], ["android.policy.sync", "android.policy.sync"])
+
+    def test_guard_default_switch_persistence_and_explicit_market_grant(self):
+        dev, dh = self.pair()
+        path = f'/api/android/devices/{dev["id"]}/policy'
+        initial = self.c.get('/api/android/agent/state', headers=dh).json['policy']
+        self.assertIs(initial['foreground_kill_enabled'], True)
+        for market in ('com.hihonor.appmarket', 'com.huawei.appmarket'):
+            self.assertEqual(initial['apps'][market], {'allowed': False, 'visible': False})
+        rules = {'com.hihonor.appmarket': {'allowed': True, 'visible': True}}
+        response = self.c.put(path, headers=self.alice, json={'apps': rules, 'foreground_kill_enabled': False})
+        self.assertEqual(response.status_code, 200)
+        self.assertIs(response.json['policy']['foreground_kill_enabled'], False)
+        self.assertIs(response.json['policy']['apps']['com.hihonor.appmarket']['allowed'], True)
+        # Old clients changing app rules must not reset an explicitly disabled guard.
+        response = self.c.put(path, headers=self.alice, json={'apps': {}})
+        self.assertIs(response.json['policy']['foreground_kill_enabled'], False)
+        with self.app.app_context():
+            self.assertEqual(get_db().execute('SELECT foreground_kill_enabled FROM android_devices WHERE device_id=?', (dev['id'],)).fetchone()[0], 0)
+        self.assertEqual(self.c.put(path, headers=self.other, json={'apps': {}, 'foreground_kill_enabled': True}).status_code, 403)
+        revision = response.json['policy']['revision']
+        for value in ('false', 0, 1, None, [], {}):
+            self.assertEqual(self.c.put(path, headers=self.alice, json={'apps': {}, 'foreground_kill_enabled': value}).status_code, 400)
+        current = self.c.get('/api/android/agent/state', headers=dh).json['policy']
+        self.assertEqual(current['revision'], revision)
+        self.assertIs(current['foreground_kill_enabled'], False)
+
+    def test_guard_column_migrates_legacy_database_without_losing_devices(self):
+        dev, dh = self.pair()
+        with self.app.app_context():
+            users = [tuple(row) for row in get_db().execute('SELECT * FROM users ORDER BY id')]
+            devices = [tuple(row) for row in get_db().execute('SELECT * FROM devices ORDER BY id')]
+            get_db().execute('ALTER TABLE android_devices DROP COLUMN foreground_kill_enabled')
+            get_db().commit()
+        migrated = create_app(dict(self.app.config))
+        with migrated.app_context():
+            self.assertEqual([tuple(row) for row in get_db().execute('SELECT * FROM users ORDER BY id')], users)
+            self.assertEqual([tuple(row) for row in get_db().execute('SELECT * FROM devices ORDER BY id')], devices)
+        response = migrated.test_client().get('/api/android/agent/state', headers=dh)
+        self.assertEqual(response.status_code, 200)
+        self.assertIs(response.json['policy']['foreground_kill_enabled'], True)
+        self.assertEqual(response.json['device_id'], dev['id'])
 
     def test_policy_rejects_non_boolean_missing_extra_and_invalid_package(self):
         dev, _ = self.pair()
@@ -391,7 +436,7 @@ class AndroidTest(unittest.TestCase):
         self.c.put(path + "/policy", headers=self.alice, json={"apps": {"org.example.reader": {"allowed": False, "visible": False}}})
         self.assertEqual(self.inventory(dh, [self.app_row(protected=True)]).status_code, 200)
         state = self.c.get("/api/android/agent/state", headers=dh).json["policy"]
-        self.assertEqual(state["apps"], {})
+        self.assertEqual(state["apps"], self.effective_rules({}))
         self.assertEqual(state["revision"], 2)
 
     def test_markets_reported_as_protected_are_editable_in_detail(self):
@@ -428,7 +473,7 @@ class AndroidTest(unittest.TestCase):
                              'org.example.reader':{'allowed':False,'visible':True}}
                     response = self.c.put(path+'/policy', headers=self.alice, json={'apps':rules})
                     self.assertEqual(response.status_code, 200)
-                    self.assertEqual(response.json['policy']['apps'], rules)
+                    self.assertEqual(response.json['policy']['apps'], self.effective_rules(rules))
                     self.assertEqual(self.c.get('/api/android/agent/state', headers=dh).json['policy'], response.json['policy'])
         self.assertEqual(self.c.put(path+'/policy', headers=self.other, json={'apps':{markets[0]:{'allowed':False,'visible':False}}}).status_code, 403)
         with self.app.app_context():

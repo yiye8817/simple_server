@@ -35,6 +35,16 @@ export HERMES_API_KEY='可选的 Hermes API Key'
 export HERMES_MODEL='hermes'
 ```
 
+## 小步英语 Android 学习进度
+
+启动更新后的服务，在控制台「用户管理」为学习账号创建访问 Token。在 APK 的 **Learning history → Progress sync** 填写设备可访问的服务地址和 Token。同一局域网可使用 `http://<服务器 IP>:5000`，公网连接请使用 HTTPS。
+
+- `GET /api/xiaobu-words/progress` 列出当前账号的同步设备和最近同步时间。
+- `GET /api/xiaobu-words/progress/<device_id>` 返回逐条进度。可用 `kind` 筛选，以 `next_after` 作为下一页的 `after`。返回 `null` 表示已到末页。也可在 `/apis/` 选择「小步英语」测试接口。
+- `PUT /api/xiaobu-words/progress/<device_id>` 由 APK 调用。服务按账号、设备和记录键归档。同一批次可以重试，旧版本不会覆盖新进度。时间字段使用 Unix 毫秒。
+
+记录类型包括 `course` 地图课程，`self_word`、`self_practice` 自学词卡和练习，`review_word`、`review_practice`、`review_session` 错题和间隔复习，以及 `town_session`、`town_mastery`、`town_round`、`town_reading` 单词小镇。服务器启动时自动创建相应 SQLite 表。APK 将记录上传到服务器，各设备的本地学习状态独立保存。
+
 ## 使用 drawio 保存到服务器
 
 1. `POST /api/auth/login`，请求 JSON 为 `{"username":"admin","password":"..."}`，复制返回的 `token`。
@@ -47,6 +57,7 @@ export HERMES_MODEL='hermes'
 - 用户：`/api/auth/login`、`/api/auth/users`
 - 文件：`GET /api/files`、`GET|PUT /api/files/content`、`POST /api/files/directory`
 - 小记：`GET|POST /api/notes`、`GET|PATCH|DELETE /api/notes/<id>`
+- 小步英语：`GET /api/xiaobu-words/progress`、`GET|PUT /api/xiaobu-words/progress/<device_id>`
 - OpenAPI：`GET /api/openapi.json`，页面 `/apis/` 可下载接口文件并在线测试
 - 设备管理：`GET /api/devices`、`POST /api/devices/<id>/tasks`
 - Agent：`/api/agent/enroll`、`register`、`heartbeat`、`poll`、`tasks/<id>/result`
@@ -146,3 +157,10 @@ Word Atlas 接口的读取不要求登录：
 词条、插画和音频来源于 [0xLei Word Atlas](https://0xlei.tech/words/#/atlas)，授权为 CC BY 4.0；本服务保存词条数据和资源地址，不复制目标站点的图片或音频二进制文件。
 
 线上更新可使用 `scripts/deploy_word_atlas.sh /tmp/simple-server-word-atlas.tar.gz`。目标地址为 HTTP 时，脚本默认拒绝明文发送 Bearer token；只有确认网络链路受信后才设置 `ALLOW_INSECURE_DEPLOY=1`。更新完成后由管理员调用 `/api/words/sync`，不要把令牌写入脚本或归档。
+
+### Android 应用市场与前台守护
+
+应用市场默认不可使用、桌面不可见；必须由设备所有者在“Android 管理 → 应用规则”中明确放行。普通未指定应用仍保持原先默认。
+每台设备的 `foreground_kill_enabled` 默认为 `true`，可在应用规则上方切换后保存。关闭该开关仅停止强停机制，并不自动放行市场。显式允许应用会豁免该应用的前台强停。
+守护针对未放行的荣耀/华为应用市场及官方 B站HD。家长同签名占位设置页豁免。平板通过已授权的受限 ADB 服务执行真实强停，无授权时仍保留无障碍拦截；重启设备后需重新启动授权服务。
+设备私有保存服务器地址、配对信息与单独的无凭据表单草稿；主动解除配对保留地址/草稿，但撤销令牌和服务器策略。更换配对需要本机锁屏身份验证。

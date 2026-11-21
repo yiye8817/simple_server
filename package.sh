@@ -34,6 +34,10 @@ echo "正在打包到：$OUTPUT"
 tar -czf "$OUTPUT" \
     --exclude='./.git' \
     --exclude='./.venv' \
+    --exclude='./.test-tmp' \
+    --exclude='./.superpowers' \
+    --exclude='./.env' \
+    --exclude='./.env.*' \
     --exclude='./data' \
     --exclude='./dist' \
     --exclude='./vendor/drawio/webapp/.codegraph' \

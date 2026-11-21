@@ -59,6 +59,11 @@ def spec():
         "/api/typing/word":{"get":op("获取练习单词",desc="返回英文单词、中文释义和音标")},
         "/api/typing/history":{"get":op("打字历史")},
         "/api/typing/results":{"post":op("提交打字结果",body={"session_id":"s1","word":"hello","typed":"hello","correct":True,"timed_out":False,"elapsed_ms":800})},
+        "/api/xiaobu-words/progress":{"get":op("列出当前账号的小步英语同步设备")},
+        "/api/xiaobu-words/progress/{device_id}":{
+            "get":op("读取设备的详细学习进度",params=[p("device_id"),q("kind","记录类型"),q("after","上一页返回的 next_after",typ="integer"),q("limit","每页记录数，最大 50",typ="integer")]),
+            "put":op("同步设备的学习记录",params=[p("device_id")],body={"schema_version":1,"device_name":"Android Pad","revision":1,"records":[{"kind":"course","key":"body-front","data":{"last_activity":0,"puzzle":{"phase":"BUILD","solved":["head"]}}}]}),
+        },
     }
     paths.update({
         "/api/words": {
@@ -140,6 +145,7 @@ def spec():
         elif path.startswith("/api/device") or path.startswith("/api/agent"): tag="设备"
         elif path.startswith("/api/updates"): tag="更新"
         elif path.startswith("/api/typing"): tag="打字游戏"
+        elif path.startswith("/api/xiaobu-words"): tag="小步英语"
         elif path.startswith("/api/words"): tag="Word Atlas"
         elif path.startswith("/api/openapi") or path=="/api/health": tag="系统"
         for item in methods.values():
