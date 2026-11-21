@@ -1,7 +1,163 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>服务器自更新</title><style>
-:root{font:14px Inter,"Noto Sans SC",system-ui;color:var(--ui-text);background:var(--ui-canvas);--line:var(--ui-line);--panel:var(--ui-surface);--blue:var(--ui-accent)}*{box-sizing:border-box}body{margin:0;padding:24px;background:radial-gradient(circle at 85% 0,var(--ui-accent-soft),transparent 35%),var(--ui-canvas)}button,input{font:inherit}.wrap{max-width:1150px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}.version{padding:7px 11px;border-radius:15px;background:var(--ui-accent-soft);color:var(--ui-accent)}.upload{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin:20px 0;padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}label{display:grid;gap:5px;color:var(--ui-muted)}input{padding:10px;border:1px solid var(--ui-line);border-radius:8px;background:var(--ui-field);color:var(--ui-text)}.btn{padding:10px 13px;border:0;border-radius:8px;background:var(--blue);color:#07121d;font-weight:800;cursor:pointer}.danger{background:var(--ui-danger);color:var(--ui-text)}.ghost{border:1px solid var(--line);background:transparent;color:var(--ui-text)}.card{margin:12px 0;padding:17px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}.cardhead{display:flex;justify-content:space-between;gap:15px}.muted{color:var(--ui-muted)}.counts{display:flex;gap:8px;flex-wrap:wrap;margin:13px 0}.pill{padding:4px 8px;border-radius:12px;background:var(--ui-accent-soft)}.files{max-height:220px;overflow:auto;padding:9px;background:var(--ui-field);border-radius:8px;font-family:monospace;font-size:12px}.actions{display:flex;gap:8px;margin-top:12px}.ok{color:var(--ui-success)}.bad{color:var(--ui-danger)}.notice{min-height:22px}@media(max-width:700px){body{padding:14px}h1{font-size:22px}.upload,.cardhead,.actions{flex-direction:column;align-items:stretch}.btn{min-height:40px}}</style><link rel="stylesheet" href="{{ url_for('static', filename='control-ui.css', v='20261025-1') }}">
-</head><body class="ui-page ui-updates"><div class="wrap"><header class="top"><div><h1>服务器自更新</h1><div class="muted">上传、对比、确认应用、版本历史和回滚</div></div><div class="version">当前版本：<strong id="current">-</strong></div></header><form id="upload" class="upload"><label>版本号（根据文件名自动获取）<input id="version" readonly placeholder="选择更新包后自动显示"></label><label>更新包<input id="file" required type="file" accept=".gz,application/gzip"></label><button class="btn">上传并检查</button></form><div id="notice" class="notice"></div><section id="updates"></section></div><script>
-const $=s=>document.querySelector(s),H=()=>({Authorization:'Bearer '+(localStorage.getItem('devControlToken')||'')});async function api(url,opt={}){opt.headers=Object.assign(H(),opt.headers||{});let r=await fetch(url,opt),d=await r.json();if(!r.ok)throw Error(d.error||'请求失败');return d}function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-async function load(){let d=await api('/api/updates');$('#current').textContent=d.current_version;$('#updates').innerHTML=d.updates.map(x=>{let diff=x.diff||{},summary=['added','modified','unchanged','deleted'].map(k=>`<span class="pill">${k}: ${(diff[k]||[]).length}</span>`).join(''),files=[...(diff.added||[]).map(v=>'+ '+v.path),...(diff.modified||[]).map(v=>'~ '+v.path),...(diff.deleted||[]).map(v=>'- '+v.path)];return `<article class="card"><div class="cardhead"><div><h3>${esc(x.version)}</h3><div class="muted">#${x.id} · ${new Date(x.created_at*1000).toLocaleString()}</div></div><strong class="${x.status==='applied'?'ok':x.status==='rolled_back'?'bad':''}">${x.status}</strong></div><div class="counts">${summary}</div><div class="files">${files.map(esc).join('<br>')||'没有文件变化'}</div><div class="actions">${x.status==='staged'?`<button class="btn" onclick="applyUpdate(${x.id})">确认应用并重启</button>`:''}${x.status==='applied'?`<button class="btn danger" onclick="rollback(${x.id})">回滚此版本</button>`:''}</div></article>`}).join('')||'<p class="muted">暂无更新历史</p>'}
-function filenameVersion(name){let stem=(name||'').replace(/\.tar\.gz$/i,'').replace(/^(simple-server-|server-|update-)/i,'');let m=stem.match(/^v?(\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z][0-9A-Za-z.-]*)?)$/);return m?m[1]:''}$('#file').onchange=e=>{$('#version').value=filenameVersion(e.target.files[0]?.name||'');if(e.target.files[0]&&!$('#version').value)notice('无法识别版本号，请使用 simple-server-1.2.3.tar.gz 格式',false)};$('#upload').onsubmit=async e=>{e.preventDefault();let form=new FormData();form.append('file',$('#file').files[0]);notice('正在上传、校验并比较文件…',true);try{let d=await api('/api/updates/upload',{method:'POST',body:form});notice(`检查完成：新增 ${d.summary.added}，修改 ${d.summary.modified}，不变 ${d.summary.unchanged}`,true);e.target.reset();load()}catch(x){notice(x.message,false)}};async function applyUpdate(id){if(!confirm('将备份并覆盖服务器代码，随后自动重启。确定继续？'))return;notice('正在应用更新，服务即将重启…',true);try{await api(`/api/updates/${id}/apply`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{"restart":true}'});setTimeout(()=>location.reload(),4000)}catch(e){notice(e.message,false)}}async function rollback(id){if(!confirm('确定恢复该版本应用前的文件并重启？'))return;await api(`/api/updates/${id}/rollback`,{method:'POST'});setTimeout(()=>location.reload(),4000)}function notice(s,ok){$('#notice').textContent=s;$('#notice').className='notice '+(ok?'ok':'bad')}load().catch(e=>notice(e.message,false));
-</script></body></html>
+:root{font:14px Inter,"Noto Sans SC",system-ui;color:var(--ui-text);background:var(--ui-canvas);--line:var(--ui-line);--panel:var(--ui-surface);--blue:var(--ui-accent)}*{box-sizing:border-box}body{margin:0;padding:24px;background:radial-gradient(circle at 85% 0,var(--ui-accent-soft),transparent 35%),var(--ui-canvas)}button,input{font:inherit}.wrap{max-width:1150px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}.version{padding:7px 11px;border-radius:15px;background:var(--ui-accent-soft);color:var(--ui-accent)}.upload{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin:20px 0;padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}label{display:grid;gap:5px;color:var(--ui-muted)}input{padding:10px;border:1px solid var(--ui-line);border-radius:8px;background:var(--ui-field);color:var(--ui-text)}.btn{padding:10px 13px;border:0;border-radius:8px;background:var(--blue);color:#07121d;font-weight:800;cursor:pointer}.danger{background:var(--ui-danger);color:var(--ui-text)}.ghost{border:1px solid var(--line);background:transparent;color:var(--ui-text)}.card{margin:12px 0;padding:17px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}.cardhead{display:flex;justify-content:space-between;gap:15px}.muted{color:var(--ui-muted)}.counts{display:flex;gap:8px;flex-wrap:wrap;margin:13px 0}.pill{padding:4px 8px;border-radius:12px;background:var(--ui-accent-soft)}.files{max-height:220px;overflow:auto;padding:9px;background:var(--ui-field);border-radius:8px;font-family:monospace;font-size:12px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.btn:disabled{opacity:.6;cursor:wait}.ok{color:var(--ui-success)}.bad{color:var(--ui-danger)}.notice{min-height:22px}@media(max-width:700px){body{padding:14px}h1{font-size:22px}.upload,.cardhead,.actions{flex-direction:column;align-items:stretch}.btn{min-height:40px}}</style><link rel="stylesheet" href="{{ url_for('static', filename='control-ui.css', v='20261025-1') }}">
+</head>
+<body class="ui-page ui-updates">
+<div class="wrap">
+  <header class="top">
+    <div><h1>服务器自更新</h1><div class="muted">上传、对比、应用、下载、删除及回滚更新版本</div></div>
+    <div class="version">当前版本：<strong id="current">-</strong></div>
+  </header>
+  <form id="upload" class="upload">
+    <label>版本号（根据文件名自动获取）<input id="version" readonly placeholder="选择更新包后自动显示"></label>
+    <label>更新包<input id="file" required type="file" accept=".tar.gz,application/gzip"></label>
+    <button class="btn">上传并检查</button>
+  </form>
+  <div id="notice" class="notice" role="status"></div>
+  <section id="updates"></section>
+</div>
+<script>
+const $ = selector => document.querySelector(selector);
+
+async function request(url, options = {}) {
+  const headers = new Headers(options.headers);
+  headers.set('Authorization', 'Bearer ' + (localStorage.getItem('devControlToken') || ''));
+  const response = await fetch(url, {...options, headers});
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `请求失败（${response.status}）`);
+  }
+  return response;
+}
+
+async function api(url, options) {
+  return (await request(url, options)).json();
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
+
+const statuses = {staged: '待应用', applied: '已应用', rolled_back: '已回滚', deleting: '待完成清理'};
+
+async function load() {
+  const data = await api('/api/updates');
+  $('#current').textContent = data.current_version;
+  $('#updates').innerHTML = data.updates.map(update => {
+    const diff = update.diff || {};
+    const summary = Object.entries({added: '新增', modified: '修改', unchanged: '不变', deleted: '删除'})
+      .map(([key, label]) => `<span class="pill">${label}：${(diff[key] || []).length}</span>`).join('');
+    const files = [
+      ...(diff.added || []).map(file => '+ ' + file.path),
+      ...(diff.modified || []).map(file => '~ ' + file.path),
+      ...(diff.deleted || []).map(file => '- ' + file.path)
+    ];
+    const statusClass = {applied: 'ok', rolled_back: 'bad', deleting: 'bad'}[update.status] || '';
+    return `<article class="card" data-id="${update.id}" data-version="${esc(update.version)}" data-status="${esc(update.status)}">
+      <div class="cardhead">
+        <div><h3>${esc(update.version)}</h3><div class="muted">#${update.id} · ${new Date(update.created_at * 1000).toLocaleString()}</div></div>
+        <strong class="${statusClass}">${esc(statuses[update.status] || update.status)}</strong>
+      </div>
+      <div class="counts">${summary}</div>
+      <div class="files">${files.map(esc).join('<br>') || '没有文件变化'}</div>
+      <div class="actions">
+        ${update.status === 'staged' ? '<button class="btn" data-action="apply">确认应用并重启</button>' : ''}
+        ${update.status === 'applied' ? '<button class="btn danger" data-action="rollback">回滚此版本</button>' : ''}
+        ${update.status === 'deleting' ? '' : '<button class="btn ghost" data-action="download">下载更新包</button>'}
+        <button class="btn danger" data-action="delete">${update.status === 'deleting' ? '重试删除' : '删除版本'}</button>
+      </div>
+    </article>`;
+  }).join('') || '<p class="muted">暂无更新历史</p>';
+}
+
+function filenameVersion(name) {
+  const stem = name.replace(/\.tar\.gz$/i, '').replace(/^(simple-server-|server-|update-)/i, '');
+  return stem.match(/^v?(\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z][0-9A-Za-z.-]*)?)$/)?.[1] || '';
+}
+
+$('#file').onchange = event => {
+  const file = event.target.files[0];
+  $('#version').value = filenameVersion(file?.name || '');
+  if (file && !$('#version').value) notice('无法识别版本号，请使用 simple-server-1.2.3.tar.gz 格式', false);
+};
+
+$('#upload').onsubmit = async event => {
+  event.preventDefault();
+  const form = new FormData();
+  form.append('file', $('#file').files[0]);
+  notice('正在上传、校验并比较文件…', true);
+  try {
+    const {summary} = await api('/api/updates/upload', {method: 'POST', body: form});
+    event.target.reset();
+    await load();
+    notice(`检查完成：新增 ${summary.added}，修改 ${summary.modified}，不变 ${summary.unchanged}`, true);
+  } catch (error) {
+    notice(error.message, false);
+  }
+};
+
+async function downloadUpdate(id, version) {
+  notice(`正在下载 ${version}…`, true);
+  const response = await request(`/api/updates/${id}/download`);
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = response.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/i)?.[1]
+    || `simple-server-${version}.tar.gz`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  notice(`已下载 ${version} 的更新包`, true);
+}
+
+async function deleteUpdate(id, version, status) {
+  let message = `确定删除版本 ${version} 的更新包和历史记录？`;
+  if (status === 'applied') message += '\n当前运行代码会保留，该版本的回滚备份也会删除。';
+  if (!confirm(message)) return;
+  try {
+    await api(`/api/updates/${id}`, {method: 'DELETE'});
+  } catch (error) {
+    await load().catch(() => {});
+    throw error;
+  }
+  await load();
+  notice(`已删除版本 ${version}`, true);
+}
+
+async function applyUpdate(id) {
+  if (!confirm('将备份并覆盖服务器代码，随后自动重启。确定继续？')) return;
+  notice('正在应用更新，服务即将重启…', true);
+  await api(`/api/updates/${id}/apply`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"restart":true}'
+  });
+  setTimeout(() => location.reload(), 4000);
+}
+
+async function rollback(id) {
+  if (!confirm('确定恢复该版本应用前的文件并重启？')) return;
+  await api(`/api/updates/${id}/rollback`, {method: 'POST'});
+  setTimeout(() => location.reload(), 4000);
+}
+
+const actions = {apply: applyUpdate, rollback, download: downloadUpdate, delete: deleteUpdate};
+$('#updates').onclick = async event => {
+  const button = event.target.closest('button[data-action]');
+  if (!button) return;
+  const {id, version, status} = button.closest('article').dataset;
+  button.disabled = true;
+  try {
+    await actions[button.dataset.action](id, version, status);
+  } catch (error) {
+    notice(error.message, false);
+  } finally {
+    button.disabled = false;
+  }
+};
+
+function notice(message, ok) {
+  $('#notice').textContent = message;
+  $('#notice').className = 'notice ' + (ok ? 'ok' : 'bad');
+}
+
+load().catch(error => notice(error.message, false));
+</script>
+</body>
+</html>

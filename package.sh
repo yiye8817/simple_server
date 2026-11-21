@@ -48,6 +48,7 @@ tar -czf "$OUTPUT" \
     --exclude='*/__pycache__' \
     --exclude='*.pyc' \
     --exclude='*.log' \
+    --exclude='*.tar.gz' \
     --exclude='*.db-wal' \
     --exclude='*.db-shm' \
     .

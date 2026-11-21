@@ -68,7 +68,7 @@ export HERMES_MODEL='hermes'
 - 文件批量删除：`POST /api/files/bulk-delete`，请求体为 `{"paths":["a.txt","folder"]}`。
 - 用户统计：`GET /api/user-management/users`、`GET /api/user-management/me/stats`
 - 用户访问 Token：`GET|POST /api/user-management/users/<id>/tokens`、`DELETE /api/user-management/users/<id>/tokens/<token_id>`。完整 Token 仅本人或管理员可读取。
-- 服务器自更新：`GET /api/updates`、`POST /api/updates/upload`、`POST /api/updates/<id>/apply`、`POST /api/updates/<id>/rollback`。仅管理员可用。
+- 服务器自更新（仅管理员）：`GET /api/updates`、`POST /api/updates/upload`、`GET /api/updates/<id>/download`、`DELETE /api/updates/<id>`、`POST /api/updates/<id>/apply`、`POST /api/updates/<id>/rollback`。
 
 Agent 启动示例：
 
@@ -80,12 +80,14 @@ clients/device_agent/run.sh --server-url http://127.0.0.1:5000
 
 项目版本保存在根目录 `VERSION`。每次执行 `./package.sh` 会自动把补丁号加一（例如 `1.0.6` → `1.0.7`），并写入 `VERSION` 与安装包文件名。也可用 `VERSION=1.2.0 ./package.sh` 指定版本。自更新页面会从安装包文件名读取版本号（如 `simple-server-1.2.3.tar.gz`），并在应用后读取包内的新 `VERSION`。
 
+管理员可在控制台「服务器更新」下载原始更新包或删除历史版本。删除时同时清理暂存文件和回滚备份，当前运行代码会保留。侧栏「GitHub 仓库」可直接打开项目源码。
+
 端口扫描会优先使用系统 `nmap`；服务器未安装 `nmap` 时自动使用内置 TCP 扫描器，无需额外安装。打字练习词库包含中文释义，答对后使用浏览器语音合成播报英文单词。
 
 ```bash
 ./package.sh
-# 或指定输出文件
-./package.sh /tmp/simple-server.tar.gz
+# 或指定版本和输出文件
+VERSION=1.2.0 ./package.sh /tmp/simple-server-1.2.0.tar.gz
 ```
 
 安装包排除运行数据、虚拟环境、Git 元数据、缓存和 secret 文件；解压后直接执行 `./run.sh`。

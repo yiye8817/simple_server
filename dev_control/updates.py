@@ -1,6 +1,6 @@
 import hashlib, json, os, re, shutil, tarfile, tempfile, threading, time
 from pathlib import Path, PurePosixPath
-from flask import Blueprint, current_app, g, jsonify, render_template, request
+from flask import Blueprint, current_app, g, jsonify, render_template, request, send_file
 from .db import get_db
 from .security import require_user
 
@@ -9,6 +9,7 @@ BLOCKED={".git",".venv","data","dist","__pycache__"}
 MAX_FILES=15000
 MAX_UNPACKED=1024*1024*1024
 VERSION_PATTERN=re.compile(r"^v?(\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z][0-9A-Za-z.-]*)?)$")
+UPDATE_LOCK = threading.Lock()
 
 def version_from_filename(filename):
     name=Path(filename or "").name
@@ -71,13 +72,33 @@ def compare(manifest,stage):
 def row_data(row):
     d=dict(row);d["manifest"]=json.loads(d.pop("manifest_json") or "[]");d["diff"]=json.loads(d.pop("diff_json") or "{}");return d
 
+
+def package_directory(row):
+    base = (Path(current_app.config["DATA_DIR"]) / "updates").resolve()
+    archive = Path(row["archive_path"])
+    directory = archive.parent
+    if (archive.name != "update.tar.gz" or not directory.name.startswith("stage-")
+            or directory.parent.resolve() != base or directory.is_symlink()
+            or Path(row["stage_path"]) != directory / "payload"):
+        raise ValueError("更新包路径无效")
+    return base / directory.name
+
+
+def remove_update_directory(directory):
+    try:
+        shutil.rmtree(directory)
+    except FileNotFoundError:
+        if directory.exists():
+            raise
+
+
 @bp.get("/updates/")
 def page():return render_template("updates.html")
 
 @bp.get("/api/updates")
 @require_user(admin=True)
 def list_updates():
-    rows=get_db().execute("SELECT * FROM app_updates ORDER BY id DESC LIMIT 100").fetchall();version=(project_root()/"VERSION").read_text().strip() if (project_root()/"VERSION").exists() else "unknown"
+    rows=get_db().execute("SELECT * FROM app_updates WHERE status <> 'deleted' ORDER BY id DESC LIMIT 100").fetchall();version=(project_root()/"VERSION").read_text().strip() if (project_root()/"VERSION").exists() else "unknown"
     return jsonify(current_version=version,updates=[row_data(r) for r in rows])
 
 @bp.post("/api/updates/upload")
@@ -94,23 +115,99 @@ def upload():
     cur=get_db().execute("INSERT INTO app_updates(version,status,archive_path,stage_path,manifest_json,diff_json,created_by,created_at) VALUES(?,?,?,?,?,?,?,?)",(version,"staged",str(archive),str(stage),json.dumps(manifest),json.dumps(diff),g.user["id"],int(time.time())));get_db().commit()
     return jsonify(id=cur.lastrowid,version=version,status="staged",summary={k:len(v) for k,v in diff.items()},diff=diff),201
 
+
+@bp.get("/api/updates/<int:update_id>/download")
+@require_user(admin=True)
+def download(update_id):
+    with UPDATE_LOCK:
+        row = get_db().execute("SELECT * FROM app_updates WHERE id=?", (update_id,)).fetchone()
+        if not row or row["status"] in ("deleting", "deleted"):
+            return jsonify(error="更新版本不存在"), 404
+        try:
+            archive = package_directory(row) / "update.tar.gz"
+            if archive.is_symlink() or not archive.is_file():
+                raise FileNotFoundError
+            response = send_file(archive, mimetype="application/gzip", as_attachment=True,
+                                 download_name=f"simple-server-{row['version']}.tar.gz")
+        except (ValueError, FileNotFoundError):
+            return jsonify(error="更新包文件不存在"), 404
+        response.cache_control.no_store = True
+        return response
+
+
+@bp.delete("/api/updates/<int:update_id>")
+@require_user(admin=True)
+def delete(update_id):
+    with UPDATE_LOCK:
+        db = get_db()
+        row = db.execute("SELECT * FROM app_updates WHERE id=?", (update_id,)).fetchone()
+        if not row:
+            return jsonify(error="更新版本不存在"), 404
+        if row["status"] == "deleted":
+            return jsonify(ok=True)
+
+        backup = (Path(current_app.config["DATA_DIR"]) / "update_backups").resolve() / str(update_id)
+        try:
+            directory = package_directory(row)
+            if backup.is_symlink() or (row["backup_path"] and Path(row["backup_path"]).resolve() != backup):
+                raise ValueError("回滚备份路径无效")
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 409
+
+        # Retain the in-progress record so cleanup can be retried after a failure.
+        with db:
+            db.execute("UPDATE app_updates SET status='deleting' WHERE id=?", (update_id,))
+        try:
+            remove_update_directory(directory)
+            remove_update_directory(backup)
+        except OSError:
+            current_app.logger.exception("Failed to delete update %s", update_id)
+            return jsonify(error="更新文件清理失败，请重试删除"), 500
+
+        # Preserve the ID so delayed requests cannot target a newly uploaded version.
+        with db:
+            db.execute("""UPDATE app_updates SET status='deleted', archive_path='', stage_path='',
+                          backup_path=NULL, manifest_json='[]', diff_json='{}' WHERE id=?""", (update_id,))
+        return jsonify(ok=True)
+
+
 @bp.post("/api/updates/<int:update_id>/apply")
 @require_user(admin=True)
 def apply(update_id):
-    row=get_db().execute("SELECT * FROM app_updates WHERE id=?",(update_id,)).fetchone()
-    if not row or row["status"]!="staged":return jsonify(error="更新不存在或状态不是 staged"),409
-    manifest=json.loads(row["manifest_json"]);stage=Path(row["stage_path"]);root=project_root();backup=Path(current_app.config["DATA_DIR"])/"update_backups"/str(update_id);backup.mkdir(parents=True,exist_ok=True);added=[]
-    try:
-        for item in manifest:
-            rel=Path(item["path"]);src=stage/rel;dst=root/rel
-            if not src.is_file():raise ValueError(f"暂存文件缺失：{rel}")
-            if dst.exists():
-                old=backup/rel;old.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(dst,old)
-            else:added.append(str(rel))
-            dst.parent.mkdir(parents=True,exist_ok=True);tmp=dst.with_name(dst.name+".update-tmp");shutil.copy2(src,tmp);os.replace(tmp,dst)
-        meta={"added":added,"backup":str(backup)};(backup/"rollback.json").write_text(json.dumps(meta),encoding="utf-8")
-        get_db().execute("UPDATE app_updates SET status='applied',backup_path=?,applied_at=? WHERE id=?",(str(backup),int(time.time()),update_id));get_db().commit()
-    except Exception as e:get_db().rollback();return jsonify(error=f"应用失败：{e}"),500
+    with UPDATE_LOCK:
+        db = get_db()
+        row = db.execute("SELECT * FROM app_updates WHERE id=?", (update_id,)).fetchone()
+        if not row or row["status"] != "staged":
+            return jsonify(error="更新不存在或状态不是 staged"), 409
+        manifest = json.loads(row["manifest_json"])
+        stage = Path(row["stage_path"])
+        root = project_root()
+        backup = Path(current_app.config["DATA_DIR"]) / "update_backups" / str(update_id)
+        backup.mkdir(parents=True, exist_ok=True)
+        added = []
+        try:
+            for item in manifest:
+                rel = Path(item["path"])
+                src, dst = stage / rel, root / rel
+                if not src.is_file():
+                    raise ValueError(f"暂存文件缺失：{rel}")
+                if dst.exists():
+                    old = backup / rel
+                    old.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(dst, old)
+                else:
+                    added.append(str(rel))
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                tmp = dst.with_name(dst.name + ".update-tmp")
+                shutil.copy2(src, tmp)
+                os.replace(tmp, dst)
+            meta = {"added": added, "backup": str(backup)}
+            (backup / "rollback.json").write_text(json.dumps(meta), encoding="utf-8")
+            with db:
+                db.execute("UPDATE app_updates SET status='applied',backup_path=?,applied_at=? WHERE id=?",
+                           (str(backup), int(time.time()), update_id))
+        except Exception as exc:
+            return jsonify(error=f"应用失败：{exc}"), 500
     restart=bool((request.get_json(silent=True) or {}).get("restart",True))
     if restart and not current_app.config.get("TESTING"):
         def stop():time.sleep(.8);os._exit(75)
@@ -120,16 +217,26 @@ def apply(update_id):
 @bp.post("/api/updates/<int:update_id>/rollback")
 @require_user(admin=True)
 def rollback(update_id):
-    row=get_db().execute("SELECT * FROM app_updates WHERE id=?",(update_id,)).fetchone()
-    if not row or row["status"]!="applied" or not row["backup_path"]:return jsonify(error="该版本不可回滚"),409
-    root=project_root();backup=Path(row["backup_path"]);meta=json.loads((backup/"rollback.json").read_text())
-    for rel in meta["added"]:
-        p=root/rel
-        if p.is_file():p.unlink()
-    for p in backup.rglob("*"):
-        if p.is_file() and p.name!="rollback.json":
-            rel=p.relative_to(backup);dst=root/rel;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(p,dst)
-    get_db().execute("UPDATE app_updates SET status='rolled_back',rolled_back_at=? WHERE id=?",(int(time.time()),update_id));get_db().commit()
+    with UPDATE_LOCK:
+        db = get_db()
+        row = db.execute("SELECT * FROM app_updates WHERE id=?", (update_id,)).fetchone()
+        if not row or row["status"] != "applied" or not row["backup_path"]:
+            return jsonify(error="该版本不可回滚"), 409
+        root = project_root()
+        backup = Path(row["backup_path"])
+        meta = json.loads((backup / "rollback.json").read_text())
+        for rel in meta["added"]:
+            p = root / rel
+            if p.is_file():
+                p.unlink()
+        for p in backup.rglob("*"):
+            if p.is_file() and p.name != "rollback.json":
+                dst = root / p.relative_to(backup)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(p, dst)
+        with db:
+            db.execute("UPDATE app_updates SET status='rolled_back',rolled_back_at=? WHERE id=?",
+                       (int(time.time()), update_id))
     if not current_app.config.get("TESTING"):
         threading.Thread(target=lambda:(time.sleep(.8),os._exit(75)),daemon=True).start()
     return jsonify(ok=True,restart_scheduled=True)

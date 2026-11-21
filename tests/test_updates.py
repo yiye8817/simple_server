@@ -1,4 +1,4 @@
-import io, tarfile, tempfile, unittest
+import io, shutil, tarfile, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
 from dev_control import create_app
@@ -33,5 +33,75 @@ class UpdatesTest(unittest.TestCase):
         with tarfile.open(fileobj=buf,mode="w:gz") as tar:
             info=tarfile.TarInfo("bad-link");info.type=tarfile.SYMTYPE;info.linkname="/etc/passwd";tar.addfile(info)
         buf.seek(0);r=self.c.post("/api/updates/upload",headers=self.h,data={"file":(buf,"simple-server-1.1.1.tar.gz")},content_type="multipart/form-data");self.assertEqual(r.status_code,400)
+
+    def upload_version(self):
+        package = archive({"VERSION": "1.1.0\n", "change.txt": "new"})
+        original = package.getvalue()
+        response = self.c.post("/api/updates/upload", headers=self.h,
+                               data={"file": (package, "server-v1.1.0.tar.gz")})
+        self.assertEqual(response.status_code, 201)
+        return response.json["id"], original
+
+    def test_download_returns_original_archive_and_requires_admin(self):
+        update_id, original = self.upload_version()
+        url = f"/api/updates/{update_id}"
+        self.c.post("/api/auth/users", headers=self.h,
+                    json={"username": "reader", "password": "reader-password", "role": "user"})
+        token = self.c.post("/api/auth/login", json={"username": "reader", "password": "reader-password"}).json["token"]
+        ordinary = {"Authorization": f"Bearer {token}"}
+        self.assertEqual(self.c.get(url + "/download").status_code, 401)
+        self.assertEqual(self.c.get(url + "/download", headers=ordinary).status_code, 403)
+        self.assertEqual(self.c.delete(url).status_code, 401)
+        self.assertEqual(self.c.delete(url, headers=ordinary).status_code, 403)
+        with self.c.get(url + "/download", headers=self.h) as response:
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, original)
+            self.assertEqual(response.mimetype, "application/gzip")
+            self.assertIn("attachment; filename=simple-server-1.1.0.tar.gz", response.headers["Content-Disposition"])
+            self.assertTrue(response.cache_control.no_store)
+
+    def test_delete_applied_update_removes_files_but_keeps_running_version(self):
+        update_id, _ = self.upload_version()
+        url = f"/api/updates/{update_id}"
+        applied = self.c.post(url + "/apply", headers=self.h, json={"restart": False})
+        self.assertEqual(applied.status_code, 200)
+        row = self.c.get("/api/updates", headers=self.h).json["updates"][0]
+        directory = Path(row["archive_path"]).parent
+        backup = Path(row["backup_path"])
+        self.assertTrue(directory.is_dir())
+        self.assertTrue(backup.is_dir())
+
+        self.assertEqual(self.c.delete(url, headers=self.h).status_code, 200)
+        self.assertFalse(directory.exists())
+        self.assertFalse(backup.exists())
+        listing = self.c.get("/api/updates", headers=self.h).json
+        self.assertEqual(listing, {"current_version": "1.1.0", "updates": []})
+        self.assertEqual((self.project / "change.txt").read_text(), "new")
+        self.assertEqual(self.c.get(url + "/download", headers=self.h).status_code, 404)
+        self.assertEqual(self.c.post(url + "/rollback", headers=self.h).status_code, 409)
+        self.assertEqual(self.c.delete(url, headers=self.h).status_code, 200)
+        self.assertNotEqual(self.upload_version()[0], update_id)
+
+    def test_delete_can_retry_after_partial_cleanup(self):
+        update_id, _ = self.upload_version()
+        url = f"/api/updates/{update_id}"
+        row = self.c.get("/api/updates", headers=self.h).json["updates"][0]
+        directory = Path(row["archive_path"]).parent
+        rmtree = shutil.rmtree
+
+        def fail_after_removing_package(path):
+            if path == directory:
+                rmtree(path)
+                return
+            raise PermissionError
+
+        with patch("dev_control.updates.shutil.rmtree", side_effect=fail_after_removing_package):
+            with self.assertLogs(self.app.logger, level="ERROR"):
+                self.assertEqual(self.c.delete(url, headers=self.h).status_code, 500)
+        self.assertFalse(directory.exists())
+        self.assertEqual(self.c.get("/api/updates", headers=self.h).json["updates"][0]["status"], "deleting")
+        self.assertEqual(self.c.post(url + "/apply", headers=self.h).status_code, 409)
+        self.assertEqual(self.c.delete(url, headers=self.h).status_code, 200)
+        self.assertEqual(self.c.get("/api/updates", headers=self.h).json["updates"], [])
 
 if __name__=="__main__":unittest.main()

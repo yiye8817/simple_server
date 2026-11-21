@@ -56,6 +56,9 @@ def spec():
         "/api/agent/enroll":{"post":op("设备注册",body={"device_uid":"dev-1","hostname":"box"},auth=False)},
         "/api/agent/install-info":{"get":op("Agent 安装信息",auth=False)},
         "/api/updates":{"get":op("更新历史（管理员）")},
+        "/api/updates/{id}/download":{"get":op("下载更新包（管理员）",params=[p("id","integer")])},
+        "/api/updates/{id}":{"delete":op("删除更新版本（管理员）",params=[p("id","integer")],
+                                          desc="删除更新包、暂存文件和回滚备份，保留当前运行代码。")},
         "/api/typing/word":{"get":op("获取练习单词",desc="返回英文单词、中文释义和音标")},
         "/api/typing/history":{"get":op("打字历史")},
         "/api/typing/results":{"post":op("提交打字结果",body={"session_id":"s1","word":"hello","typed":"hello","correct":True,"timed_out":False,"elapsed_ms":800})},
@@ -83,6 +86,10 @@ def spec():
     paths["/api/words"]["post"]["responses"]["201"] = {"description": "词条已创建"}
     paths["/api/words"]["post"]["responses"]["409"] = {"description": "词条 ID 已存在"}
     paths["/api/words/sync"]["post"]["requestBody"]["content"]["application/json"]["schema"] = {"type": "object", "properties": {"source_base": {"type": "string", "format": "uri"}, "dry_run": {"type": "boolean"}}}
+    update_download = paths["/api/updates/{id}/download"]["get"]
+    update_download["responses"]["200"] = {"description": "更新包附件", "content": {"application/gzip": {"schema": {"type": "string", "format": "binary"}}}}
+    update_download["responses"]["403"] = {"description": "需要管理员权限"}
+    paths["/api/updates/{id}"]["delete"]["responses"]["403"] = {"description": "需要管理员权限"}
     android_device = [p("device_id", "integer")]
     android_file = [*android_device, p("file_id", "integer")]
     paths.update({
