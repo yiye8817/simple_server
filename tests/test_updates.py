@@ -60,6 +60,18 @@ class UpdatesTest(unittest.TestCase):
             self.assertIn("attachment; filename=simple-server-1.1.0.tar.gz", response.headers["Content-Disposition"])
             self.assertTrue(response.cache_control.no_store)
 
+    def test_list_summary_returns_counts_and_changed_paths_without_manifest(self):
+        update_id, _ = self.upload_version()
+        url = "/api/updates"
+        full = self.c.get(url, headers=self.h).json["updates"][0]
+        self.assertTrue(full["manifest"])
+        summary = self.c.get(url + "?summary=1", headers=self.h).json["updates"][0]
+        self.assertEqual(summary, {
+            "id": update_id, "version": "1.1.0", "status": "staged", "created_at": full["created_at"],
+            "summary": {"added": 0, "modified": 2, "unchanged": 0, "deleted": 0},
+            "changes": {"added": [], "modified": ["VERSION", "change.txt"], "deleted": []},
+        })
+
     def test_delete_applied_update_removes_files_but_keeps_running_version(self):
         update_id, _ = self.upload_version()
         url = f"/api/updates/{update_id}"

@@ -73,6 +73,15 @@ def row_data(row):
     d=dict(row);d["manifest"]=json.loads(d.pop("manifest_json") or "[]");d["diff"]=json.loads(d.pop("diff_json") or "{}");return d
 
 
+def row_summary(row):
+    update = dict(row)
+    diff = json.loads(update.pop("diff_json") or "{}")
+    update["summary"] = {key: len(diff.get(key, [])) for key in ("added", "modified", "unchanged", "deleted")}
+    update["changes"] = {key: [item["path"] for item in diff.get(key, [])]
+                         for key in ("added", "modified", "deleted")}
+    return update
+
+
 def package_directory(row):
     base = (Path(current_app.config["DATA_DIR"]) / "updates").resolve()
     archive = Path(row["archive_path"])
@@ -98,8 +107,13 @@ def page():return render_template("updates.html")
 @bp.get("/api/updates")
 @require_user(admin=True)
 def list_updates():
-    rows=get_db().execute("SELECT * FROM app_updates WHERE status <> 'deleted' ORDER BY id DESC LIMIT 100").fetchall();version=(project_root()/"VERSION").read_text().strip() if (project_root()/"VERSION").exists() else "unknown"
-    return jsonify(current_version=version,updates=[row_data(r) for r in rows])
+    summary = request.args.get("summary") == "1"
+    columns = "id, version, status, created_at, diff_json" if summary else "*"
+    rows = get_db().execute(f"SELECT {columns} FROM app_updates WHERE status <> 'deleted' ORDER BY id DESC LIMIT 100")
+    version_file = project_root() / "VERSION"
+    version = version_file.read_text().strip() if version_file.exists() else "unknown"
+    serialize = row_summary if summary else row_data
+    return jsonify(current_version=version, updates=[serialize(row) for row in rows])
 
 @bp.post("/api/updates/upload")
 @require_user(admin=True)

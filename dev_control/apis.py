@@ -55,7 +55,7 @@ def spec():
         "/api/devices/{device_id}/tasks":{"get":op("设备任务",params=[p("device_id","integer")]),"post":op("下发任务",body={"kind":"exec","payload":{"command":"uname -a","timeout":60,"shell":True}},params=[p("device_id","integer")])},
         "/api/agent/enroll":{"post":op("设备注册",body={"device_uid":"dev-1","hostname":"box"},auth=False)},
         "/api/agent/install-info":{"get":op("Agent 安装信息",auth=False)},
-        "/api/updates":{"get":op("更新历史（管理员）")},
+        "/api/updates":{"get":op("更新历史（管理员）",params=[q("summary","设为 1 时返回文件数量和变更路径")])},
         "/api/updates/{id}/download":{"get":op("下载更新包（管理员）",params=[p("id","integer")])},
         "/api/updates/{id}":{"delete":op("删除更新版本（管理员）",params=[p("id","integer")],
                                           desc="删除更新包、暂存文件和回滚备份，保留当前运行代码。")},

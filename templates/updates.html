@@ -40,16 +40,15 @@ function esc(s) {
 const statuses = {staged: '待应用', applied: '已应用', rolled_back: '已回滚', deleting: '待完成清理'};
 
 async function load() {
-  const data = await api('/api/updates');
+  const data = await api('/api/updates?summary=1');
   $('#current').textContent = data.current_version;
   $('#updates').innerHTML = data.updates.map(update => {
-    const diff = update.diff || {};
     const summary = Object.entries({added: '新增', modified: '修改', unchanged: '不变', deleted: '删除'})
-      .map(([key, label]) => `<span class="pill">${label}：${(diff[key] || []).length}</span>`).join('');
+      .map(([key, label]) => `<span class="pill">${label}：${update.summary[key]}</span>`).join('');
     const files = [
-      ...(diff.added || []).map(file => '+ ' + file.path),
-      ...(diff.modified || []).map(file => '~ ' + file.path),
-      ...(diff.deleted || []).map(file => '- ' + file.path)
+      ...update.changes.added.map(path => '+ ' + path),
+      ...update.changes.modified.map(path => '~ ' + path),
+      ...update.changes.deleted.map(path => '- ' + path)
     ];
     const statusClass = {applied: 'ok', rolled_back: 'bad', deleting: 'bad'}[update.status] || '';
     return `<article class="card" data-id="${update.id}" data-version="${esc(update.version)}" data-status="${esc(update.status)}">
